@@ -1,0 +1,146 @@
+[
+  {
+    "filter": "BilateralFilter",
+    "enabled": true,
+    "params": {
+      "kernel": 1,
+      "sigma_color": 3,
+      "sigma_space": 3,
+      "sigmas": 1
+    }
+  },
+  {
+    "filter": "BitwiseAndFilter",
+    "enabled": true,
+    "params": {
+    }
+  },
+  {
+    "filter": "BitwiseNotFilter",
+    "enabled": true,
+    "params": {
+    }
+  },
+  {
+    "filter": "BitwiseOrFilter",
+    "enabled": true,
+    "params": {
+    }
+  },
+  {
+    "filter": "BlurFilter",
+    "enabled": true,
+    "params": {
+      "size": 1
+    }
+  },
+  {
+    "filter": "CannyFilter",
+    "enabled": true,
+    "params": {
+      "thresh1": 1,
+      "thresh2": 1,
+      "aperture_size": 3,
+      "l2_gradient": 0
+    }
+  },{
+    "filter": "ChannelFilter",
+    "enabled": true,
+    "params": {
+      "channel": 0,
+      "thresh": 0,
+      "type": 0
+    }
+  },
+  {
+    "filter": "ClipFilter",
+    "enabled": true,
+    "params": {
+      "clip": 0
+    }
+  },
+  {
+    "filter": "ContoursFilter",
+    "enabled": true,
+    "params": {
+      "lower": 0,
+      "upper": 10
+    }
+  },
+  {
+    "filter": "EqualizeHistogramFilter",
+    "enabled": true,
+    "params": {}
+  },
+  {
+    "filter": "GaussianBlurFilter",
+    "enabled": true,
+    "params": {
+      "size": 3
+    }
+  },
+  {
+    "filter": "GrayscaleFilter",
+    "enabled": true
+  },
+  {
+    "filter": "HiLoThresholdFilter",
+    "enabled": true,
+    "params": {
+      "lower": 0,
+      "upper": 255
+    }
+  },
+  {
+    "filter": "HiLo2ThresholdFilter",
+    "enabled": true,
+    "params": {
+      "thresh": 0,
+      "neighborhood": 1
+    }
+  },
+  {
+    "filter": "HSVFilter",
+    "enabled": true,
+    "params": {
+      "h-lo": 0,
+      "h-hi": 0,
+      "s-lo": 0,
+      "s-hi": 0,
+      "v-lo": 0,
+      "v-hi": 0
+    }
+  },
+  {
+    "filter": "MedianBlurFilter",
+    "enabled": true,
+    "params": {
+      "size": 1
+    }
+  },
+  {
+    "filter": "MorphFilter",
+    "enabled": true,
+    "params": {
+      "size": 1,
+      "iters": 1,
+      "operator": 0,
+      "element": 0
+    }
+  },
+  {
+    "filter": "SobelFilter",
+    "enabled": true,
+    "params": {
+      "ksize": 3
+    }
+  },
+  {
+    "filter": "ThresholdFilter",
+    "enabled": true,
+    "params": {
+      "thresh": 3,
+      "type": 0
+    }
+  }
+]

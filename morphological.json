@@ -1,0 +1,90 @@
+[
+  {
+    "filter": "GrayscaleFilter",
+    "enabled": true
+  },
+  {
+    "filter": "MorphFilter",
+    "tid": "erode",
+    "enabled": true,
+    "params": {
+      "size_x": 1,
+      "size_y": 1,
+      "iters": 1,
+      "operator": 0,
+      "element": 0
+    }
+  },
+  {
+    "filter": "MorphFilter",
+    "tid": "dilate",
+    "enabled": true,
+    "params": {
+      "size_x": 1,
+      "size_y": 1,
+      "iters": 1,
+      "operator": 1,
+      "element": 0
+    }
+  },
+  {
+    "filter": "MorphFilter",
+    "tid": "open",
+    "enabled": true,
+    "params": {
+      "size_x": 1,
+      "size_y": 1,
+      "iters": 1,
+      "operator": 2,
+      "element": 0
+    }
+  },
+  {
+    "filter": "MorphFilter",
+    "tid": "close",
+    "enabled": true,
+    "params": {
+      "size_x": 1,
+      "size_y": 1,
+      "iters": 1,
+      "operator": 3,
+      "element": 0
+    }
+  },
+  {
+    "filter": "MorphFilter",
+    "tid": "gradient",
+    "enabled": true,
+    "params": {
+      "size_x": 1,
+      "size_y": 1,
+      "iters": 1,
+      "operator": 4,
+      "element": 0
+    }
+  },
+  {
+    "filter": "MorphFilter",
+    "tid": "tophat",
+    "enabled": true,
+    "params": {
+      "size_x": 1,
+      "size_y": 1,
+      "iters": 1,
+      "operator": 5,
+      "element": 0
+    }
+  },
+  {
+    "filter": "MorphFilter",
+    "tid": "blackhat",
+    "enabled": true,
+    "params": {
+      "size_x": 1,
+      "size_y": 1,
+      "iters": 1,
+      "operator": 6,
+      "element": 0
+    }
+  }
+]
