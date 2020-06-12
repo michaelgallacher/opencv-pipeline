@@ -45,6 +45,18 @@ optional arguments:
    -p PIPELINE, --pipeline PIPELINE    path to json describing pipeline
 ```
 
+## JSON schema
+The JSON file supports the following tags:
+| tag | description | required? |
+|-------------|----------------------|------------------|
+| _` filter`_ | The name of the class in the opencv-filters.py file | Required |
+ _`params`_ | Filter-specific parameters used to set initial values | Required if there are any params
+ _`enabled`_ | If false, the filter becomes a NOP | Optional
+ _`tid`_ | This ID is used as the display name; filters declared below this filter can use the 'tid' as an input | Optional
+ _`input`_ | Specifies the 'tid' of the filter to use as the input image; if this is not specified, the filter uses the image produced by the filter immediately above it in the file | Optional
+ _`inputs`_ | A list of 'tid' values which will be passed as a list to the input of the filter; useful for BitwiseAnd/Or filters | Optional, but required to join parallel series.
+
+
 ## To Do
 * Add drag-n-drop (perhaps with a platform more suited to this).
 * Add Library pane with list of supported filters.
