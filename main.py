@@ -1,19 +1,24 @@
 import argparse
-import importlib
 import json
 import os
-import traceback
 from collections import namedtuple
+
+import importlib
+import traceback
 
 ## This line MUST BE ABOVE all kivy import statements
 os.environ['KIVY_NO_ARGS'] = '1'
 
 from kivy.app import App
-from kivy.uix.accordion import Accordion
+from kivy.core.window import Window
+from kivy.modules import inspector
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
 from kivy.uix.image import Image
+from kivy.uix.scrollview import ScrollView
 from kivy.uix.splitter import Splitter
 
+from DragDrop import DraggableBoxLayoutBehavior
 from opencv_filters import *
 from util import cv_to_kivy_texture
 
@@ -21,13 +26,25 @@ SliderInfo = namedtuple('SliderInfo', 'name min_val max_val init_val step_val')
 SliderInfo2 = namedtuple('SliderInfo', 'min_val max_val step_val')
 
 
-class Pipeline(Accordion):
+class DraggableAccordionLayout(DraggableBoxLayoutBehavior, GridLayout):
+    def handle_drag_release(self, index, drag_widget):
+        self.add_widget(drag_widget, index)
+
+
+class Pipeline(DraggableAccordionLayout):
     preview = Image(allow_stretch=True, keep_ratio=True)
 
+    # drag_classes: ['DraggableFilter']
+
     def __init__(self):
-        super().__init__(orientation='vertical')
+        super().__init__()
         self.src_cv = None
         self.anim_duration = 0.1
+        self.cols = 1
+        self.size_hint_y = None
+        self.spacing = 30
+        self.bind(minimum_height=self.setter('height'))
+        # self.orientation = 'vertical'
 
     def on_collapsed(self, instance, value):
         if not value and instance.preview:
@@ -39,7 +56,7 @@ class Pipeline(Accordion):
 
     def add_filter(self, filter_widget):
         filter_widget.value_changed = self.invalidated
-        filter_widget.bind(collapse=self.on_collapsed)
+        # filter_widget.bind(collapse=self.on_collapsed)
         filter_widget.bind(is_enabled=self.on_update)
         self.add_widget(filter_widget)
 
@@ -63,7 +80,7 @@ class Pipeline(Accordion):
                         images_with_tids[_filter.tid] = next_image
 
                     # set the preview if the widget isn't collapsed
-                    if not _filter.collapse:
+                    if not _filter.collapsed:
                         self.preview.texture = cv_to_kivy_texture(next_image)
 
                     # clear any error
@@ -131,7 +148,16 @@ class PipelineApp(App):
         splitter = Splitter(sizable_from='right', min_size=100, strip_size='6pt')
         main_box.add_widget(splitter)
 
-        splitter.add_widget(self.pipeline_widgets)
+        sv = ScrollView(size_hint=(1, None))
+        root.bind(size=sv.setter('size'))
+        sv.bar_color = [1, 1, 1, 1]
+        sv.bar_width = 10
+        sv.scroll_distance = '10dp'
+        sv.scroll_timeout = 100
+        sv.scroll_wheel_distance = '15dp'
+        sv.smooth_scroll_end = 20
+        sv.add_widget(self.pipeline_widgets)
+        splitter.add_widget(sv)
 
         # dest image
         main_box.add_widget(self.dest_image)
@@ -143,6 +169,7 @@ class PipelineApp(App):
     def on_start(self):
         self.load_pipeline(self.pipeline_name)
         self.update()
+        inspector.create_inspector(Window, self)
 
     def update(self):
         self.dest_image.texture = cv_to_kivy_texture(self.pipeline_widgets.update())
