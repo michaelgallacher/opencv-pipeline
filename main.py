@@ -7,6 +7,8 @@ import importlib
 import traceback
 
 ## This line MUST BE ABOVE all kivy import statements
+from kivy.properties import ObjectProperty
+
 os.environ['KIVY_NO_ARGS'] = '1'
 
 from kivy.app import App
@@ -33,30 +35,39 @@ class DraggableAccordionLayout(DraggableBoxLayoutBehavior, GridLayout):
 
 class Pipeline(DraggableAccordionLayout):
     preview = Image(allow_stretch=True, keep_ratio=True)
-
     # drag_classes: ['DraggableFilter']
+
+    selected_item = ObjectProperty(None)
 
     def __init__(self):
         super().__init__()
         self.src_cv = None
-        self.anim_duration = 0.1
         self.cols = 1
         self.size_hint_y = None
         self.spacing = 30
         self.bind(minimum_height=self.setter('height'))
-        # self.orientation = 'vertical'
 
-    def on_collapsed(self, instance, value):
-        if not value and instance.preview:
-            self.preview.texture = instance.preview.texture
+    def on_selected_item(self, instance, value):
+        if value and value.preview:
+            self.preview.texture = value.preview.texture
             self.update()
 
     def on_update(self, instance, value):
         self.update()
 
+    def on_touch_down(self, touch):
+        for child in self.children:
+            if child.title.collide_point(*touch.pos) and not child == self.selected_item:
+                if self.selected_item:
+                    self.selected_item.is_selected = False
+                child.is_selected = True
+                self.selected_item = child
+                break
+
+        return super().on_touch_down(touch)
+
     def add_filter(self, filter_widget):
         filter_widget.value_changed = self.invalidated
-        # filter_widget.bind(collapse=self.on_collapsed)
         filter_widget.bind(is_enabled=self.on_update)
         self.add_widget(filter_widget)
 
@@ -79,8 +90,8 @@ class Pipeline(DraggableAccordionLayout):
                     if _filter.tid:
                         images_with_tids[_filter.tid] = next_image
 
-                    # set the preview if the widget isn't collapsed
-                    if not _filter.collapsed:
+                    # set the preview if the widget is selected
+                    if _filter.is_selected:
                         self.preview.texture = cv_to_kivy_texture(next_image)
 
                     # clear any error

@@ -1,3 +1,4 @@
+from kivy.animation import Animation
 from kivy.lang import Builder
 from kivy.properties import BooleanProperty, StringProperty
 from kivy.uix.boxlayout import BoxLayout
@@ -6,9 +7,6 @@ from kivy.uix.label import Label
 from kivy.uix.slider import Slider
 
 from DragDrop import DraggableBoxLayoutBehavior, DraggableController, DraggableObjectBehavior
-from MyAccordionItemTitle import MyAccordionItemTitle
-
-hold_ref_so_auto_cleanup_doesnt_remove_the_import = MyAccordionItemTitle.__class__.__name__
 
 drag_controller = DraggableController()
 
@@ -27,12 +25,17 @@ Builder.load_string('''
     title_layout: title_layout
     enabled_button: enabled_button
     collapsed_button: collapsed_button
-    controls: controls
+    # controls: controls
     controls_holder: controls_holder
     orientation: 'vertical'
     size_hint_y: None
-    height: controls.height + title_layout.height
-               
+    height: title_layout.height
+    canvas.after:
+        Color: 
+            rgba: (1,1,1,1) if root.is_selected else (0,0,0,0)
+        Line:
+            points: [root.x,root.y, root.right,root.y, root.right,root.top, root.x,root.top, root.x,root.y]
+            width: 3  
     BoxLayout:
         id: title_layout
         orientation: 'horizontal'
@@ -43,13 +46,15 @@ Builder.load_string('''
             text: 'V'
             on_press: root.on_collapsed_pressed(self)
             background_normal: ''
+            background_down: ''
+            background_color: 0.1,0.4,1,1
             size_hint: (None, None)
             size: (40, title.height)
             pos_hint: {'top': 1, 'x': 1}
         Label:
             canvas.before:
                 Color: 
-                    rgba: 0.1,0.2,0.5,1
+                    rgba: (0.1,0.4,1,1) 
                 Rectangle:
                     size: self.size
                     pos: self.pos
@@ -63,6 +68,7 @@ Builder.load_string('''
             text: 'X'
             on_press: root.on_enabled_pressed(self)
             background_normal: ''
+            background_down: ''
             size_hint: (None, None)
             size: (40, title.height)
             pos_hint: {'top': 1, 'right': 1}
@@ -80,14 +86,13 @@ Builder.load_string('''
 
 class BaseFilter(BoxLayout):
     is_enabled = BooleanProperty(defaultvalue=False)
-    error = StringProperty()
+    is_selected = BooleanProperty(defaultvalue=False)
+    is_collapsed = BooleanProperty(defaultvalue=True)
 
-    collapsed = BooleanProperty(defaultvalue=False)
+    error = StringProperty()
 
     # This is set in the subclass implementation
     preview = Image(allow_stretch=True, keep_ratio=True)
-
-    last_height = 0
 
     def initiate_drag(self):
         # during a drag, we remove the widget from the original location
@@ -95,11 +100,7 @@ class BaseFilter(BoxLayout):
 
     def __init__(self):
         super().__init__()
-
-    def on_touch_down(self, touch):
-        if self.title.collide_point(*touch.pos):
-            return
-        return super().on_touch_down(touch)
+        self.controls = BoxLayout(orientation='vertical', size_hint_y=None, height=0)
 
     def on_enabled_pressed(self, instance):
         if self.error:
@@ -107,38 +108,37 @@ class BaseFilter(BoxLayout):
         self.is_enabled = not self.is_enabled
 
     def on_collapsed_pressed(self, instance):
-        self.collapsed = not self.collapsed
+        self.is_collapsed = not self.is_collapsed
         self.update_ui()
 
-    def on_collapsed(self, instance, value):
-        if len(self.controls_holder.children) == 0:
-            self.controls_holder.add_widget(self.controls)
-            self.controls_holder.height = self.controls.height
-            self.height += self.controls.height
+    def on_complete(self, animation, widget):
+        widget.controls_holder.add_widget(widget.controls)
+
+    def on_is_collapsed(self, instance, value):
+        if self.controls not in self.controls_holder.children:
+            anim = Animation(height=self.height+self.controls.height, duration=0.05)
+            anim.bind(on_complete=self.on_complete)
+            anim.start(self)
         else:
             self.controls_holder.remove_widget(self.controls)
-            self.controls_holder.height = 0
-            self.height -= self.controls.height
+            Animation(height=self.height-self.controls.height, duration=0.05).start(self)
 
     def update_ui(self, *_):
         if self.error:
-            self.enabled_button.background_color = (1, 0, 0, 1)
+            self.enabled_button.background_color = (0.6, 0, 0, 1)
             self.title.text = f'[color=#ff0000]{self.display_name}[/color]'
             self.controls.disabled = True
         else:
             self.controls.disabled = not self.is_enabled
-            self.enabled_button.background_color = (0, 1, 0, 1) if self.is_enabled else (0, 0.5, 0, 1)
+            self.enabled_button.background_color = (0, 0.6, 0, 1) if self.is_enabled else (0, 0.4, 0, 1)
             color_str = 'ffffff' if self.is_enabled else '888888'
             self.title.text = f'[color=#{color_str}]{self.display_name}[/color]'
 
         if len(self.controls.children) == 0:
-            self.collapsed_button.background_color = (0.1, 0.2, 0.5, 1)
             self.collapsed_button.text = ''
-        elif self.collapsed:
-            self.collapsed_button.background_color = (0.1, 0.2, 0.5, 1)
+        elif self.is_collapsed:
             self.collapsed_button.text = 'V'
         else:
-            self.collapsed_button.background_color = (0.1, 0.2, 0.5, 1)
             self.collapsed_button.text = '^'
 
     def on_error(self, obj, value):
@@ -202,6 +202,11 @@ class BaseSliderFilter(BaseFilter):
         self.size_hint_y = None
         self.height = box_layout.height
         self.add_filter_widget(box_layout)
+
+    def on_touch_down(self, touch):
+        if self.title.collide_point(*touch.pos) and self.is_collapsed:
+            self.is_collapsed = False
+        return super().on_touch_down(touch)
 
     # the default is to show the value being used
     def get_display_callback(self, _):
