@@ -11,5 +11,6 @@ def cv_to_kivy_texture(src_cv):
     frame = (out_cv.shape[1], out_cv.shape[0])
     buf = out_cv.tostring()
     texture = Texture.create(size=(frame[0], frame[1]), colorfmt='bgr')
+    texture.flip_vertical()
     texture.blit_buffer(buf, colorfmt='bgr', bufferfmt='ubyte')
     return texture

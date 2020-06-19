@@ -7,10 +7,8 @@ import importlib
 import traceback
 
 ## This line MUST BE ABOVE all kivy import statements
-from kivy.properties import ObjectProperty
-
 os.environ['KIVY_NO_ARGS'] = '1'
-
+from kivy.properties import ObjectProperty
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.modules import inspector
@@ -116,7 +114,6 @@ class PipelineApp(App):
             exit(1)
 
         self.src_cv = cv.imread(filename)
-        self.src_cv = cv.flip(self.src_cv, 0)
 
         self.src_image = Image(allow_stretch=True, keep_ratio=True)
         self.src_image.texture = cv_to_kivy_texture(self.src_cv)
