@@ -1,5 +1,15 @@
 [
   {
+    "filter": "AdaptiveThresholdFilter",
+    "enabled": false,
+    "params": {
+      "threshold": 255,
+      "threshold_type": 1,
+      "block_size": 3,
+      "C": 0
+    }
+  },
+  {
     "filter": "BilateralFilter",
     "enabled": true,
     "params": {
@@ -71,6 +81,20 @@
     "filter": "EqualizeHistogramFilter",
     "enabled": true,
     "params": {}
+  },
+  {
+    "filter": "FourPointFilter",
+    "enabled": true,
+    "params": {
+      "tl_x": 0,
+      "tl_y": 0,
+      "tr_x": 100,
+      "tr_y": 0,
+      "br_x": 100,
+      "br_y": 100,
+      "bl_x": 0,
+      "lb_y": 100
+    }
   },
   {
     "filter": "GaussianBlurFilter",

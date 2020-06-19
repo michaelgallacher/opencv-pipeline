@@ -1,8 +1,31 @@
-import random as rng
 import cv2 as cv
 import numpy as np
 
 from base_filters import BaseFilter, BaseSliderFilter
+
+
+# Thanks Adrian @ https://www.pyimagesearch.com/2014/08/25/4-point-opencv-getperspective-transform-example!
+def four_point_transform(image, rect):
+    (tl, tr, br, bl) = rect
+
+    width_a = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+    width_b = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+    max_width = max(int(width_a), int(width_b))
+
+    height_a = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+    height_b = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+    max_height = max(int(height_a), int(height_b))
+
+    dst = np.array([
+        [0, 0],
+        [max_width - 1, 0],
+        [max_width - 1, max_height - 1],
+        [0, max_height - 1]], dtype="float32")
+
+    M = cv.getPerspectiveTransform(rect, dst)
+    warped = cv.warpPerspective(image, M, (max_width, max_height))
+    # return the warped image
+    return warped
 
 
 def sobel(src_cv, sobel_blur):
@@ -39,6 +62,35 @@ def sobel(src_cv, sobel_blur):
     grad = cv.addWeighted(abs_grad_x, 1, abs_grad_y, 1, 0)
 
     return grad
+
+
+class AdaptiveThresholdFilter(BaseSliderFilter):
+    filter_params = {'threshold': {'min_val': 0, 'max_val': 255, 'step_val': 1},
+                     'threshold_type': {'min_val': 0, 'max_val': 1, 'step_val': 1},
+                     'block_size': {'min_val': 3, 'max_val': 9, 'step_val': 2},
+                     'C': {'min_val': -5, 'max_val': 5, 'step_val': 1}}
+    opers = [
+        (cv.THRESH_BINARY, 'BINARY'),
+        (cv.THRESH_BINARY_INV, 'BINARY_INV')]
+
+    def get_display_callback(self, filter):
+        return {
+            'type': self.get_oper_display,
+        }.get(filter, lambda x: str(x))
+
+    def get_oper_code(self, x):
+        return self.opers[x][0]
+
+    def get_oper_display(self, x):
+        return self.opers[x][1]
+
+    def update(self, src_cv):
+        threshold = int(self.widget_list[0].value)
+        threshold_type = self.get_oper_code(int(self.widget_list[1].value))
+        block_size = int(self.widget_list[2].value)
+        C = int(self.widget_list[3].value)
+
+        return cv.adaptiveThreshold(src_cv, threshold, cv.ADAPTIVE_THRESH_GAUSSIAN_C, threshold_type, block_size, C)
 
 
 class BilateralFilter(BaseSliderFilter):
@@ -144,6 +196,33 @@ class EqualizeHistogramFilter(BaseFilter):
 
     def update(self, src_cv):
         return cv.equalizeHist(src_cv)
+
+
+class FourPointFilter(BaseSliderFilter):
+    filter_params = {'tl_x': {'min_val': 0, 'max_val': 100, 'step_val': 1},
+                     'tl_y': {'min_val': 0, 'max_val': 100, 'step_val': 1},
+                     'tr_x': {'min_val': 0, 'max_val': 100, 'step_val': 1},
+                     'tr_y': {'min_val': 0, 'max_val': 100, 'step_val': 1},
+                     'br_x': {'min_val': 0, 'max_val': 100, 'step_val': 1},
+                     'br_y': {'min_val': 0, 'max_val': 100, 'step_val': 1},
+                     'bl_x': {'min_val': 0, 'max_val': 100, 'step_val': 1},
+                     'lb_y': {'min_val': 0, 'max_val': 100, 'step_val': 1}}
+
+    def update(self, src_cv):
+        if len(src_cv.shape) == 3:
+            h, w, _ = src_cv.shape
+        else:
+            h, w = src_cv.shape
+
+        tl_x = int(self.widget_list[0].value * w / 100)
+        tl_y = int(self.widget_list[1].value * h / 100)
+        tr_x = int(self.widget_list[2].value * w / 100)
+        tr_y = int(self.widget_list[3].value * h / 100)
+        br_x = int(self.widget_list[4].value * w / 100)
+        br_y = int(self.widget_list[5].value * h / 100)
+        bl_x = int(self.widget_list[6].value * w / 100)
+        bl_y = int(self.widget_list[7].value * h / 100)
+        return four_point_transform(src_cv, np.array([(tl_x, tl_y), (tr_x, tr_y), (br_x, br_y), (bl_x, bl_y)], dtype='float32'))
 
 
 class GaussianBlurFilter(BaseSliderFilter):
