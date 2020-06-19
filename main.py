@@ -67,6 +67,7 @@ class Pipeline(DraggableAccordionLayout):
     def add_filter(self, filter_widget):
         filter_widget.value_changed = self.invalidated
         filter_widget.bind(is_enabled=self.on_update)
+        filter_widget.update_ui()
         self.add_widget(filter_widget)
 
     # noinspection PyBroadException

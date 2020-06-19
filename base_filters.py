@@ -116,12 +116,12 @@ class BaseFilter(BoxLayout):
 
     def on_is_collapsed(self, instance, value):
         if self.controls not in self.controls_holder.children:
-            anim = Animation(height=self.height+self.controls.height, duration=0.05)
+            anim = Animation(height=self.title_layout.height+self.controls.height, duration=0.05)
             anim.bind(on_complete=self.on_complete)
             anim.start(self)
         else:
             self.controls_holder.remove_widget(self.controls)
-            Animation(height=self.height-self.controls.height, duration=0.05).start(self)
+            Animation(height=self.title_layout.height, duration=0.05).start(self)
 
     def update_ui(self, *_):
         if self.error:
@@ -136,10 +136,13 @@ class BaseFilter(BoxLayout):
 
         if len(self.controls.children) == 0:
             self.collapsed_button.text = ''
+            self.height = self.title_layout.height
         elif self.is_collapsed:
             self.collapsed_button.text = 'V'
+            self.height = self.title_layout.height
         else:
             self.collapsed_button.text = '^'
+            self.height = self.title_layout.height + self.controls.height
 
     def on_error(self, obj, value):
         self.update_ui()
