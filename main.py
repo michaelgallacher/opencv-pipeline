@@ -6,7 +6,7 @@ from collections import namedtuple
 import importlib
 import traceback
 
-## This line MUST BE ABOVE all kivy import statements
+# This line MUST BE ABOVE all kivy import statements
 os.environ['KIVY_NO_ARGS'] = '1'
 from kivy.properties import ObjectProperty
 from kivy.app import App
@@ -33,7 +33,6 @@ class DraggableAccordionLayout(DraggableBoxLayoutBehavior, GridLayout):
 
 class Pipeline(DraggableAccordionLayout):
     preview = Image(allow_stretch=True, keep_ratio=True)
-    # drag_classes: ['DraggableFilter']
 
     selected_item = ObjectProperty(None)
 
@@ -46,8 +45,8 @@ class Pipeline(DraggableAccordionLayout):
         self.bind(minimum_height=self.setter('height'))
 
     def on_selected_item(self, instance, value):
-        if value and value.preview:
-            self.preview.texture = value.preview.texture
+        if value and value.filter_preview:
+            self.preview.texture = value.filter_preview.texture
             self.update()
 
     def on_update(self, instance, value):
@@ -89,12 +88,15 @@ class Pipeline(DraggableAccordionLayout):
                     if _filter.tid:
                         images_with_tids[_filter.tid] = next_image
 
+                    # clear any error
+                    _filter.error = ''
+
                     # set the preview if the widget is selected
                     if _filter.is_selected:
                         self.preview.texture = cv_to_kivy_texture(next_image)
+                        # the preview for the pipeline is set don't process the rest of the filters.
+                        break
 
-                    # clear any error
-                    _filter.error = ''
                 except Exception:
                     print(traceback.format_exc())
                     _filter.error = traceback.format_exc()
@@ -123,7 +125,7 @@ class PipelineApp(App):
 
         self.pipeline_widgets.src_cv = self.src_cv
         self.pipeline_widgets.invalidated = self.update
-        self.pipeline_widgets.preview = self.src_image
+        self.pipeline_widgets.preview = self.dest_image
 
     def load_pipeline(self, file):
         f = open(file)

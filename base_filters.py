@@ -92,7 +92,7 @@ class BaseFilter(BoxLayout):
     error = StringProperty()
 
     # This is set in the subclass implementation
-    preview = Image(allow_stretch=True, keep_ratio=True)
+    filter_preview = Image(allow_stretch=True, keep_ratio=True)
 
     def initiate_drag(self):
         # during a drag, we remove the widget from the original location
@@ -103,8 +103,6 @@ class BaseFilter(BoxLayout):
         self.controls = BoxLayout(orientation='vertical', size_hint_y=None, height=0)
 
     def on_enabled_pressed(self, instance):
-        if self.error:
-            return
         self.is_enabled = not self.is_enabled
 
     def on_collapsed_pressed(self, instance):
@@ -127,9 +125,7 @@ class BaseFilter(BoxLayout):
         if self.error:
             self.enabled_button.background_color = (0.6, 0, 0, 1)
             self.title.text = f'[color=#ff0000]{self.display_name}[/color]'
-            self.controls.disabled = True
         else:
-            self.controls.disabled = not self.is_enabled
             self.enabled_button.background_color = (0, 0.6, 0, 1) if self.is_enabled else (0, 0.4, 0, 1)
             color_str = 'ffffff' if self.is_enabled else '888888'
             self.title.text = f'[color=#{color_str}]{self.display_name}[/color]'
