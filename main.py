@@ -1,13 +1,21 @@
 import argparse
+import importlib
 import json
 import os
+import traceback
 from collections import namedtuple
 
-import importlib
-import traceback
-
-# This line MUST BE ABOVE all kivy import statements
+# To enable command-line arguments, this line MUST BE ABOVE all kivy import statements
 os.environ['KIVY_NO_ARGS'] = '1'
+
+# To enable a maximized window, this line MUST BE ABOVE all kivy import statements...except the previous one.
+from kivy.config import Config
+Config.set('graphics', 'window_state', 'maximized')
+
+from kivy.core.image import Image as CoreImage
+from kivy.graphics import Color, Rectangle
+from kivy.clock import Clock
+from kivy.uix.actionbar import ActionBar, ActionView, ActionButton, ActionPrevious
 from kivy.properties import ObjectProperty
 from kivy.app import App
 from kivy.core.window import Window
@@ -54,7 +62,7 @@ class Pipeline(DraggableAccordionLayout):
 
     def on_touch_down(self, touch):
         for child in self.children:
-            if child.title.collide_point(*touch.pos) and not child == self.selected_item:
+            if child.title.collide_point(*touch.pos) and child != self.selected_item:
                 if self.selected_item:
                     self.selected_item.is_selected = False
                 child.is_selected = True
@@ -72,7 +80,7 @@ class Pipeline(DraggableAccordionLayout):
     # noinspection PyBroadException
     def update(self):
         images_with_tids = {}
-        next_image = self.src_cv
+        next_image = self.src_cv.copy()
         for _filter in reversed(self.children):
             if _filter.is_enabled:
                 try:
@@ -94,7 +102,7 @@ class Pipeline(DraggableAccordionLayout):
                     # set the preview if the widget is selected
                     if _filter.is_selected:
                         self.preview.texture = cv_to_kivy_texture(next_image)
-                        # the preview for the pipeline is set don't process the rest of the filters.
+                        # the preview for the pipeline is set so skip the rest of the filters.
                         break
 
                 except Exception:
@@ -104,9 +112,27 @@ class Pipeline(DraggableAccordionLayout):
         return next_image
 
 
+class TiledBackgroundImage(Image):
+    def __init__(self, **kwargs):
+        super(TiledBackgroundImage, self).__init__(**kwargs)
+
+    def resize(self, *_):
+        self.canvas.before.clear()
+        with self.canvas.before:
+            texture = CoreImage("tile.png").texture
+            texture.wrap = 'repeat'
+            nx = float(self.width) / texture.width
+            ny = float(self.height) / texture.height
+            Rectangle(pos=self.pos, size=self.size, texture=texture,
+                      tex_coords=(0, 0, nx, 0, nx, ny, 0, ny))
+
+    on_size = resize
+
+
 class PipelineApp(App):
     def __init__(self, **kwargs):
         super().__init__()
+
         filename = kwargs.get('image_path')
         if not os.path.exists(filename):
             print(f'file {filename} not found.')
@@ -116,16 +142,27 @@ class PipelineApp(App):
             print(f'file {self.pipeline_name} not found.')
             exit(1)
 
-        self.src_cv = cv.imread(filename)
+        extension = filename[-3:].lower()
+        if extension in ('jpg', 'png'):
+            self.video_capture = None
+            self.src_cv = cv.imread(filename)
+        elif extension in ('mp4', 'mov'):
+            self.video_capture = cv.VideoCapture(filename)
+            ret_, self.src_cv = self.video_capture.read()
+        else:
+            print(f'file type {extension} is not supported')
+            exit(1)
 
-        self.src_image = Image(allow_stretch=True, keep_ratio=True)
+        self.src_image = TiledBackgroundImage(allow_stretch=True, keep_ratio=True)
         self.src_image.texture = cv_to_kivy_texture(self.src_cv)
-        self.dest_image = Image(allow_stretch=True, keep_ratio=True)
+        self.dest_image = TiledBackgroundImage(allow_stretch=True, keep_ratio=True)
         self.pipeline_widgets = Pipeline()
 
         self.pipeline_widgets.src_cv = self.src_cv
         self.pipeline_widgets.invalidated = self.update
         self.pipeline_widgets.preview = self.dest_image
+
+        self.interval_event = None
 
     def load_pipeline(self, file):
         f = open(file)
@@ -148,6 +185,23 @@ class PipelineApp(App):
     def build(self):
         root = BoxLayout(orientation='vertical')
 
+        action_bar = ActionBar()
+
+        action_view = ActionView()
+        action_view.use_separator = True
+
+        action_previous = ActionPrevious()
+        action_previous.title = 'OpenCV Pipeline'
+        action_previous.with_previous = False
+        action_view.add_widget(action_previous)
+
+        action_button = ActionButton()
+        action_button.text = "File"
+        action_view.add_widget(action_button)
+
+        action_bar.add_widget(action_view)
+        root.add_widget(action_bar)
+
         main_box = BoxLayout(orientation='horizontal')
         # source image
         splitter = Splitter(sizable_from='right', min_size=100, strip_size='6pt')
@@ -160,7 +214,7 @@ class PipelineApp(App):
         main_box.add_widget(splitter)
 
         sv = ScrollView(size_hint=(1, None))
-        root.bind(size=sv.setter('size'))
+        main_box.bind(size=sv.setter('size'))
         sv.bar_color = [1, 1, 1, 1]
         sv.bar_width = 10
         sv.scroll_distance = '10dp'
@@ -175,14 +229,47 @@ class PipelineApp(App):
 
         root.add_widget(main_box)
 
+        Window.bind(on_key_down=self.on_key_down)
+
         return root
+
+    def on_key_down(self, window, key, scancode, codepoint, modifier):
+        if not self.video_capture:
+            return
+
+        if codepoint == ' ':
+            if self.interval_event:
+                self.interval_event.cancel()
+                self.interval_event = None
+            else:
+                self.interval_event = Clock.schedule_interval(self.on_interval, 1.0 / 33.0)
+        elif codepoint == '.':
+            if self.interval_event:
+                self.interval_event.cancel()
+                self.interval_event = None
+            else:
+                self.interval_event = None
+                Clock.schedule_once(self.on_interval)
 
     def on_start(self):
         self.load_pipeline(self.pipeline_name)
-        self.update()
+        Clock.schedule_once(self.on_interval)
+
         inspector.create_inspector(Window, self)
 
+    # Called when a video is in use.
+    def on_interval(self, dt):
+        if self.video_capture:
+            ret_, self.src_cv = self.video_capture.read()
+            if not ret_:
+                return
+
+        self.update()
+
+    # Called after 'src_cv' is updated.
     def update(self):
+        self.src_image.texture = cv_to_kivy_texture(self.src_cv)
+        self.pipeline_widgets.src_cv = self.src_cv
         self.dest_image.texture = cv_to_kivy_texture(self.pipeline_widgets.update())
 
 
