@@ -1,0 +1,96 @@
+[
+  {
+    "filter": "FourPointFilter",
+    "enabled": true,
+    "params": {
+      "tl_x": 0,
+      "tl_y": 0,
+      "tr_x": 100,
+      "tr_y": 0,
+      "br_x": 100,
+      "br_y": 100,
+      "bl_x": 0,
+      "lb_y": 100
+    }
+  },
+  {
+    "filter": "GrayscaleFilter",
+    "enabled": true
+  },
+  {
+    "filter": "AdaptiveThresholdFilter",
+    "enabled": false,
+    "params": {
+      "threshold": 255,
+      "threshold_type": 1,
+      "block_size": 3,
+      "C": 0
+    }
+  },
+  {
+    "filter": "GaussianBlurFilter",
+    "enabled": true,
+    "params": {
+      "size": 3
+    }
+  },
+  {
+    "tid": "threshold",
+    "filter": "ThresholdFilter",
+    "enabled": false,
+    "params": {
+      "thresh": 0,
+      "type": 2
+    }
+  },
+  {
+    "tid": "morph_y",
+    "filter": "MorphFilter",
+    "enabled": true,
+    "params": {
+      "size_x": 3,
+      "size_y": 19,
+      "iters": 1,
+      "operator": 3,
+      "element": 0
+    }
+  },
+  {
+    "filter": "ContoursFilter",
+    "enabled": true,
+    "params": {
+      "lower": 0,
+      "upper": 10
+    }
+  },
+  {
+    "filter": "SobelFilter",
+    "enabled": true,
+    "params": {
+      "ksize": 3
+    }
+  },
+  {
+    "tid": "canny_y",
+    "filter": "CannyFilter",
+    "enabled": true,
+    "params": {
+      "thresh1": 1,
+      "thresh2": 1,
+      "aperture_size": 3,
+      "l2_gradient": 0
+    }
+  },
+  {
+    "tid": "morph_x",
+    "filter": "MorphFilter",
+    "enabled": true,
+    "params": {
+      "size_x": 33,
+      "size_y": 3,
+      "iters": 1,
+      "operator": 3,
+      "element": 0
+    }
+  }
+]

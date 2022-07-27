@@ -1,0 +1,81 @@
+[
+  {
+    "filter": "CropFilter",
+    "enabled": true,
+    "params": {
+      "left": 60,
+      "top": 10,
+      "right": 90,
+      "bottom": 60
+    }
+  },
+  {
+    "filter": "GaussianBlurFilter",
+    "enabled": true,
+    "params": {
+      "size": 5
+    }
+  },
+  {
+    "filter": "HSVFilter",
+    "enabled": true,
+    "params": {
+      "h-lo": 0,
+      "h-hi": 179,
+      "s-lo": 0,
+      "s-hi": 32,
+      "v-lo": 192,
+      "v-hi": 248
+    }
+  },
+  {
+    "filter": "ThresholdFilter",
+    "enabled": false,
+    "params": {
+      "thresh": 128,
+      "type": 0
+    }
+  },
+  {
+    "filter": "GrayscaleFilter",
+    "enabled": false
+  },
+  {
+    "filter": "MorphFilter",
+    "enabled": true,
+    "params": {
+      "size_x": 5,
+      "size_y": 5,
+      "iters": 1,
+      "operator": 1,
+      "element": 1
+    }
+  },
+  {
+    "filter": "MorphFilter",
+    "enabled": false,
+    "params": {
+      "size_x": 5,
+      "size_y": 5,
+      "iters": 1,
+      "operator": 4,
+      "element": 1
+    }
+  },
+  {
+    "filter": "ContoursFilter",
+    "enabled": true,
+    "params": {
+      "lower": 2500,
+      "upper": 75000,
+      "method": 0
+    }
+  },
+  {
+    "filter": "FindSquaresFilter",
+    "enabled": true,
+    "params": {
+      "arc_length": 0.1
+    }
+  }
+]

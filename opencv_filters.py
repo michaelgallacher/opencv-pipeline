@@ -36,6 +36,43 @@ class AdaptiveThresholdFilter(BaseSliderFilter):
         return cv2.adaptiveThreshold(src_cv, threshold, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, threshold_type, block_size, C)
 
 
+def angle_cos(p0, p1, p2):
+    d1, d2 = (p0 - p1).astype('float'), (p2 - p1).astype('float')
+    return abs(np.dot(d1, d2) / np.sqrt(np.dot(d1, d1) * np.dot(d2, d2)))
+
+
+class FindSquaresFilter(BaseSliderFilter):
+    filter_params = {'arc_length': {'min_val': 0, 'max_val': 0.5, 'step_val': 0.001}}
+
+    def update(self, src_cv):
+        arc_length = self.widget_list[0].value
+        img = src_cv
+        img = cv.GaussianBlur(img, (5, 5), 0)
+        squares = []
+        for gray in cv.split(img):
+            for thrs in range(0, 255, 26):
+                if thrs == 0:
+                    bin = cv.Canny(gray, 0, 50, apertureSize=5)
+                    bin = cv.dilate(bin, None)
+                else:
+                    _retval, bin = cv.threshold(gray, thrs, 255, cv.THRESH_BINARY)
+                contours, _hierarchy = cv.findContours(bin, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE)
+                for cnt in contours:
+                    cnt_len = cv.arcLength(cnt, True)
+                    cnt = cv.approxPolyDP(cnt, arc_length * cnt_len, True)
+                    if len(cnt) >= 4 and cv.contourArea(cnt) > 1000:
+                        cnt = cnt.reshape(-1, 2)
+                        max_cos = np.max([angle_cos(cnt[i], cnt[(i + 1) % 4], cnt[(i + 2) % 4]) for i in range(4)])
+                        if max_cos < 0.2:
+                            squares.append(cnt)
+
+        output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
+        for contour in squares:
+            color = (128, 255, 255)  # (rng.randint(65, 256), rng.randint(65, 256), rng.randint(65, 256))
+            cv.drawContours(output_cv, [contour], -1, color, thickness=1, lineType=cv.LINE_AA)
+
+        return output_cv
+
 class BilateralFilter(BaseSliderFilter):
     filter_params = {'kernel': SliderInfo(1, 51, 2, 3),
                      'sigma_color': SliderInfo(3, 255, 2, 75),
@@ -315,6 +352,41 @@ class HoughLinesPFilter(BaseSliderFilter):
             if filter_slope(line[0], min_slope):
                 x1, y1, x2, y2 = line[0]
                 cv2.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        return output_cv
+
+
+class HoughLinesFilter(BaseSliderFilter):
+    filter_params = {'canny_lower': {'min_val': 0, 'max_val': 1000, 'step_val': 10},
+                     'canny_upper': {'min_val': 0, 'max_val': 1000, 'step_val': 10},
+                     'canny_aperture': {'min_val': 3, 'max_val': 7, 'step_val': 2},
+                     'min_line_length': {'min_val': 1, 'max_val': 1000, 'step_val': 5},
+                     'max_gap': {'min_val': 1, 'max_val': 50, 'step_val': 5}
+                     }
+
+    def update(self, src_cv):
+        canny_lower = int(self.widget_list[0].value)
+        canny_upper = int(self.widget_list[1].value)
+        canny_aperture = int(self.widget_list[2].value)
+        min_line_length = int(self.widget_list[3].value)
+        max_gap = int(self.widget_list[4].value)
+
+        # contours, _ = cv.findContours(src_cv, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+
+        output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
+        # contours_to_draw = [c for c in contours if lower < cv.contourArea(c) < upper]
+        #
+        # if len(contours_to_draw) > 0:
+        #     for contour in contours_to_draw:
+        #         color = (255, 255, 255)  # (rng.randint(65, 256), rng.randint(65, 256), rng.randint(65, 256))
+        #         cv.drawContours(output_cv, [contour], -1, color, thickness=1, lineType=cv.LINE_AA)
+
+        gray = cv.cvtColor(src_cv, cv.COLOR_BGR2GRAY)
+        edges = cv.Canny(gray, canny_lower, canny_upper, apertureSize=canny_aperture)
+        lines = cv.HoughLinesP(edges, 1, np.pi / 180, 100, minLineLength=min_line_length, maxLineGap=max_gap)
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            cv.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
         return output_cv
 

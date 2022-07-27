@@ -1,0 +1,159 @@
+[
+  {
+    "filter": "GrayscaleFilter",
+    "enabled": true
+  },
+  {
+    "filter": "SimpleBlobDetectorFilter",
+    "enabled": true,
+    "params": {
+      "minArea": 1000,
+      "maxArea": 20000,
+      "minThreshold": 32,
+      "maxThreshold": 224,
+      "minCircularity": 0.0,
+      "maxCircularity": 0.8,
+      "minConvexity": 0.5,
+      "maxConvexity": 1.0,
+      "minInertia": 0.0,
+      "maxInertia": 0.6,
+      "minRepeatability": 2,
+      "minDistBetweenBlobs": 10,
+      "thresholdStep": 10
+    }
+  },
+  {
+    "filter": "HoughLinesFilter",
+    "enabled": false,
+    "params": {
+      "canny_lower": 60,
+      "canny_upper": 150,
+      "canny_aperture": 3,
+      "min_line_length": 30,
+      "max_gap": 10
+    }
+  },
+  {
+    "tid": "passthrough",
+    "filter": "PassthroughFilter",
+    "enabled": false
+  },
+  {
+    "tid": "hsv",
+    "filter": "HSVFilter",
+    "enabled": false,
+    "params": {
+      "h-lo": 0,
+      "h-hi": 180,
+      "s-lo": 0,
+      "s-hi": 255,
+      "v-lo": 0,
+      "v-hi": 255
+    },
+    "input": "passthrough"
+  },
+  {
+    "tid": "grayscale",
+    "filter": "GrayscaleFilter",
+    "enabled": false,
+    "input": "passthrough"
+  },
+  {
+    "filter": "BitwiseAndFilter",
+    "inputs": [
+      "grayscale",
+      "hsv"
+    ],
+    "enabled": false
+  },
+  {
+    "filter": "ThresholdFilter",
+    "enabled": false,
+    "params": {
+      "thresh": 192,
+      "type": 0
+    }
+  },
+  {
+    "tid": "grayscale2",
+    "filter": "GrayscaleFilter",
+    "enabled": false
+  },
+  {
+    "filter": "MorphFilter",
+    "enabled": false,
+    "params": {
+      "size_x": 11,
+      "size_y": 11,
+      "iters": 1,
+      "operator": 4,
+      "element": 0
+    }
+  },
+  {
+    "filter": "GrayscaleFilter",
+    "enabled": false
+  },
+  {
+    "tid": "gradient_threshold",
+    "filter": "ThresholdFilter",
+    "enabled": false,
+    "params": {
+      "thresh": 192,
+      "type": 0
+    }
+  },
+  {
+    "filter": "BitwiseAndFilter",
+    "inputs": [
+      "grayscale2",
+      "gradient_threshold"
+    ],
+    "enabled": false
+  },
+  {
+    "filter": "MorphFilter",
+    "enabled": false,
+    "params": {
+      "size_x": 21,
+      "size_y": 21,
+      "iters": 1,
+      "operator": 6,
+      "element": 1
+    }
+  },
+  {
+    "filter": "MorphFilter",
+    "enabled": false,
+    "params": {
+      "size_x": 21,
+      "size_y": 21,
+      "iters": 1,
+      "operator": 3,
+      "element": 1
+    }
+  },
+  {
+    "filter": "GaussianBlurFilter",
+    "enabled": false,
+    "params": {
+      "size": 3
+    }
+  },
+  {
+    "filter": "ThresholdFilter",
+    "enabled": false,
+    "params": {
+      "thresh": 192,
+      "type": 0
+    }
+  },
+  {
+    "filter": "ContoursFilter",
+    "enabled": true,
+    "params": {
+      "lower": 2500,
+      "upper": 125000
+    }
+  }
+]
