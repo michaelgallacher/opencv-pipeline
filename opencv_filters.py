@@ -41,38 +41,6 @@ def angle_cos(p0, p1, p2):
     return abs(np.dot(d1, d2) / np.sqrt(np.dot(d1, d1) * np.dot(d2, d2)))
 
 
-class FindSquaresFilter(BaseSliderFilter):
-    filter_params = {'arc_length': {'min_val': 0, 'max_val': 0.5, 'step_val': 0.001}}
-
-    def update(self, src_cv):
-        arc_length = self.widget_list[0].value
-        img = src_cv
-        img = cv.GaussianBlur(img, (5, 5), 0)
-        squares = []
-        for gray in cv.split(img):
-            for thrs in range(0, 255, 26):
-                if thrs == 0:
-                    bin = cv.Canny(gray, 0, 50, apertureSize=5)
-                    bin = cv.dilate(bin, None)
-                else:
-                    _retval, bin = cv.threshold(gray, thrs, 255, cv.THRESH_BINARY)
-                contours, _hierarchy = cv.findContours(bin, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE)
-                for cnt in contours:
-                    cnt_len = cv.arcLength(cnt, True)
-                    cnt = cv.approxPolyDP(cnt, arc_length * cnt_len, True)
-                    if len(cnt) >= 4 and cv.contourArea(cnt) > 1000:
-                        cnt = cnt.reshape(-1, 2)
-                        max_cos = np.max([angle_cos(cnt[i], cnt[(i + 1) % 4], cnt[(i + 2) % 4]) for i in range(4)])
-                        if max_cos < 0.2:
-                            squares.append(cnt)
-
-        output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
-        for contour in squares:
-            color = (128, 255, 255)  # (rng.randint(65, 256), rng.randint(65, 256), rng.randint(65, 256))
-            cv.drawContours(output_cv, [contour], -1, color, thickness=1, lineType=cv.LINE_AA)
-
-        return output_cv
-
 class BilateralFilter(BaseSliderFilter):
     filter_params = {'kernel': SliderInfo(1, 51, 2, 3),
                      'sigma_color': SliderInfo(3, 255, 2, 75),
@@ -275,6 +243,39 @@ class FindSquaresFilter(BaseSliderFilter):
         return output_cv
 
 
+class FindSquaresFilter(BaseSliderFilter):
+    filter_params = {'arc_length': {'min_val': 0, 'max_val': 0.5, 'step_val': 0.001}}
+
+    def update(self, src_cv):
+        arc_length = self.widget_list[0].value
+        img = src_cv
+        img = cv.GaussianBlur(img, (5, 5), 0)
+        squares = []
+        for gray in cv.split(img):
+            for thrs in range(0, 255, 26):
+                if thrs == 0:
+                    bin = cv.Canny(gray, 0, 50, apertureSize=5)
+                    bin = cv.dilate(bin, None)
+                else:
+                    _retval, bin = cv.threshold(gray, thrs, 255, cv.THRESH_BINARY)
+                contours, _hierarchy = cv.findContours(bin, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE)
+                for cnt in contours:
+                    cnt_len = cv.arcLength(cnt, True)
+                    cnt = cv.approxPolyDP(cnt, arc_length * cnt_len, True)
+                    if len(cnt) >= 4 and cv.contourArea(cnt) > 1000:
+                        cnt = cnt.reshape(-1, 2)
+                        max_cos = np.max([angle_cos(cnt[i], cnt[(i + 1) % 4], cnt[(i + 2) % 4]) for i in range(4)])
+                        if max_cos < 0.2:
+                            squares.append(cnt)
+
+        output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
+        for contour in squares:
+            color = (128, 255, 255)  # (rng.randint(65, 256), rng.randint(65, 256), rng.randint(65, 256))
+            cv.drawContours(output_cv, [contour], -1, color, thickness=1, lineType=cv.LINE_AA)
+
+        return output_cv
+    
+
 class GaussianBlurFilter(BaseSliderFilter):
     filter_params = {'size': SliderInfo(1, 15, 2, 3)}
 
@@ -307,6 +308,27 @@ class HarrisCornerFilter(BaseSliderFilter):
         gray = np.float32(gray)
         dst = cv2.cornerHarris(gray, block_size, ksize, k)
         dst = cv2.dilate(dst, None)
+        src_cv[dst > threshold * dst.max()] = [0, 255, 255]
+        return src_cv
+
+
+class HarrisCornerFilter(BaseSliderFilter):
+    filter_params = {'block_size': {'min_val': 1, 'max_val': 5, 'step_val': 1},
+                     'ksize': {'min_val': 1, 'max_val': 25, 'step_val': 2},
+                     'k': {'min_val': 0.0, 'max_val': 1.0, 'step_val': 0.01},
+                     'threshold': {'min_val': 0.0, 'max_val': 1.0, 'step_val': 0.01}
+                     }
+
+    def update(self, src_cv):
+        block_size = int(self.widget_list[0].value)
+        ksize = int(self.widget_list[1].value)
+        k = self.widget_list[2].value
+        threshold = self.widget_list[3].value
+
+        gray = cv.cvtColor(src_cv, cv.COLOR_BGR2GRAY)
+        gray = np.float32(gray)
+        dst = cv.cornerHarris(gray, block_size, ksize, k)
+        dst = cv.dilate(dst, None)
         src_cv[dst > threshold * dst.max()] = [0, 255, 255]
         return src_cv
 

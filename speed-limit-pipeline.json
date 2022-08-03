@@ -24,7 +24,7 @@
       "h-hi": 179,
       "s-lo": 0,
       "s-hi": 32,
-      "v-lo": 192,
+      "v-lo": 128,
       "v-hi": 248
     }
   },
@@ -73,7 +73,7 @@
   },
   {
     "filter": "FindSquaresFilter",
-    "enabled": true,
+    "enabled": false,
     "params": {
       "arc_length": 0.1
     }
