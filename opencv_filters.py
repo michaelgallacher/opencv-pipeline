@@ -377,35 +377,121 @@ class HoughLinesPFilter(BaseSliderFilter):
 
         return output_cv
 
+from collections import defaultdict
+def segment_by_angle_kmeans(lines, k=2, **kwargs):
+    """Groups lines based on angle with k-means.
+
+    Uses k-means on the coordinates of the angle on the unit circle
+    to segment `k` angles inside `lines`.
+    """
+
+    # Define criteria = (type, max_iter, epsilon)
+    default_criteria_type = cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER
+    criteria = kwargs.get('criteria', (default_criteria_type, 10, 1.0))
+    flags = kwargs.get('flags', cv.KMEANS_RANDOM_CENTERS)
+    attempts = kwargs.get('attempts', 10)
+
+    # returns angles in [0, pi] in radians
+    angles = np.array([line[0][1] for line in lines])
+    # multiply the angles by two and find coordinates of that angle
+    pts = np.array([[np.cos(2*angle), np.sin(2*angle)]
+                    for angle in angles], dtype=np.float32)
+
+    # run kmeans on the coords
+    labels, centers = cv.kmeans(pts, k, None, criteria, attempts, flags)[1:]
+    labels = labels.reshape(-1)  # transpose to row vec
+
+    # segment lines based on their kmeans label
+    segmented = defaultdict(list)
+    for i, line in enumerate(lines):
+        segmented[labels[i]].append(line)
+    segmented = list(segmented.values())
+    print(segmented)
+    return segmented
+
+def intersection(line1, line2):
+    """Finds the intersection of two lines given in Hesse normal form.
+
+    Returns closest integer pixel locations.
+    See https://stackoverflow.com/a/383527/5087436
+    """
+    rho1, theta1 = line1[0]
+    rho2, theta2 = line2[0]
+    A = np.array([
+        [np.cos(theta1), np.sin(theta1)],
+        [np.cos(theta2), np.sin(theta2)]
+    ])
+    b = np.array([[rho1], [rho2]])
+    x0, y0 = np.linalg.solve(A, b)
+    x0, y0 = int(np.round(x0)), int(np.round(y0))
+    return [[x0, y0]]
+
+
+def segmented_intersections(lines):
+    """Finds the intersections between groups of lines."""
+
+    intersections = []
+    for i, group in enumerate(lines[:-1]):
+        for next_group in lines[i+1:]:
+            for line1 in group:
+                for line2 in next_group:
+                    intersections.append(intersection(line1, line2))
+    # print(intersections)
+    return intersections
 
 class HoughLinesFilter(BaseSliderFilter):
-    filter_params = {'canny_lower': {'min_val': 0, 'max_val': 1000, 'step_val': 10},
-                     'canny_upper': {'min_val': 0, 'max_val': 1000, 'step_val': 10},
-                     'canny_aperture': {'min_val': 3, 'max_val': 7, 'step_val': 2},
-                     'min_line_length': {'min_val': 1, 'max_val': 1000, 'step_val': 5},
-                     'max_gap': {'min_val': 1, 'max_val': 50, 'step_val': 5}
+    filter_params = {'rho': {'min_val': 0.0, 'max_val': 5.0, 'step_val': 0.1, 'init_val': 1.0},
+                     'theta': {'min_val': 0.0, 'max_val': 6.2, 'step_val': 0.01, 'init_val': np.pi/180.0},
+                     'threshold': {'min_val': 1, 'max_val': 250, 'step_val': 1, 'init_val': 100}
+                    #  'min_line_length': {'min_val': 1, 'max_val': 1000, 'step_val': 5},
+                    #  'max_gap': {'min_val': 1, 'max_val': 50, 'step_val': 5}
+                    }
+
+    def update(self, src_cv):
+        rho = self.widget_list[0].value
+        theta = self.widget_list[1].value
+        threshold = int(self.widget_list[2].value)
+        # min_line_length = int(self.widget_list[3].value)
+        # max_gap = int(self.widget_list[4].value)
+
+        output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
+
+        lines = cv.HoughLines(src_cv, rho, theta, threshold, min_theta=np.pi/36, max_theta=np.pi-np.pi/36)
+        # for line in lines:
+        #     rho, theta = line[0]
+        #     a = np.cos(theta)
+        #     b = np.sin(theta)
+        #     x0 = a*rho
+        #     y0 = b*rho
+        #     x1 = int(x0 + 10000*(-b))
+        #     y1 = int(y0 + 10000*(a))
+        #     x2 = int(x0 - 10000*(-b))
+        #     y2 = int(y0 - 10000*(a))
+        #     cv.line(output_cv,(x1,y1),(x2,y2),(0,255,0),1)
+
+        for line in segmented_intersections(segment_by_angle_kmeans(lines)):
+            x1, y1 = line[0]
+            cv.line(output_cv, (x1, y1), (x1, y1), (0, 255, 0), 2)
+
+
+        return output_cv
+
+
+class HoughLinesPFilter(BaseSliderFilter):
+    filter_params = {
+                     'threshold': {'min_val': 1, 'max_val': 250, 'step_val': 2, 'init_val': 101},
+                     'min_line_length': {'min_val': 1, 'max_val': 1000, 'step_val': 2},
+                     'max_gap': {'min_val': 2, 'max_val': 100, 'step_val': 1}
                      }
 
     def update(self, src_cv):
-        canny_lower = int(self.widget_list[0].value)
-        canny_upper = int(self.widget_list[1].value)
-        canny_aperture = int(self.widget_list[2].value)
-        min_line_length = int(self.widget_list[3].value)
-        max_gap = int(self.widget_list[4].value)
-
-        # contours, _ = cv.findContours(src_cv, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+        threshold = int(self.widget_list[0].value)
+        min_line_length = int(self.widget_list[1].value)
+        max_gap = int(self.widget_list[2].value)
 
         output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
-        # contours_to_draw = [c for c in contours if lower < cv.contourArea(c) < upper]
-        #
-        # if len(contours_to_draw) > 0:
-        #     for contour in contours_to_draw:
-        #         color = (255, 255, 255)  # (rng.randint(65, 256), rng.randint(65, 256), rng.randint(65, 256))
-        #         cv.drawContours(output_cv, [contour], -1, color, thickness=1, lineType=cv.LINE_AA)
 
-        gray = cv.cvtColor(src_cv, cv.COLOR_BGR2GRAY)
-        edges = cv.Canny(gray, canny_lower, canny_upper, apertureSize=canny_aperture)
-        lines = cv.HoughLinesP(edges, 1, np.pi / 180, 100, minLineLength=min_line_length, maxLineGap=max_gap)
+        lines = cv.HoughLinesP(src_cv, 1, np.pi / 180, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
         for line in lines:
             x1, y1, x2, y2 = line[0]
             cv.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)

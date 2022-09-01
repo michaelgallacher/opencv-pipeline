@@ -1,0 +1,52 @@
+[
+  {
+    "tid": "pt",
+    "filter": "PassthroughFilter",
+    "enabled": true
+  },
+  {
+    "filter": "GrayscaleFilter",
+    "enabled": true
+  },
+  {
+    "filter": "DiffOfGaussianBlurFilter",
+    "enabled": false,
+    "params": {
+      "size1": 5,
+      "size2": 3
+    }
+  },
+  {
+    "tid": "canny",
+    "filter": "CannyFilter",
+    "enabled": true,
+    "params": {
+      "thresh1": 60,
+      "thresh2": 160,
+      "aperture_size": 3
+    }
+  },
+  {
+    "tid": "ho",
+    "filter": "HoughLinesPFilter",
+    "enabled": true,
+    "params": {
+      "min_line_length": 30,
+      "max_gap": 10
+    }
+  },
+  {
+    "filter": "HoughLinesFilter",
+    "enabled": false,
+    "params": {
+      "rho": 1,
+      "theta": 0.0026,
+      "threshold": 250
+    }
+  },
+  {
+    "filter": "BitwiseOrFilter",
+    "enabled": true,
+    "inputs": ["pt", "ho"]
+  }
+]
