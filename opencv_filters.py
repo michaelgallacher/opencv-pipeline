@@ -36,11 +36,6 @@ class AdaptiveThresholdFilter(BaseSliderFilter):
         return cv2.adaptiveThreshold(src_cv, threshold, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, threshold_type, block_size, C)
 
 
-def angle_cos(p0, p1, p2):
-    d1, d2 = (p0 - p1).astype('float'), (p2 - p1).astype('float')
-    return abs(np.dot(d1, d2) / np.sqrt(np.dot(d1, d1) * np.dot(d2, d2)))
-
-
 class BilateralFilter(BaseSliderFilter):
     filter_params = {'kernel': SliderInfo(1, 51, 2, 3),
                      'sigma_color': SliderInfo(3, 255, 2, 75),
@@ -186,6 +181,7 @@ class DiffOfGaussianBlurFilter(BaseSliderFilter):
         return cv2.GaussianBlur(src_cv, (size1, size1), 0) - cv2.GaussianBlur(src_cv, (size2, size2), 0)
 
 
+
 class EqualizeHistogramFilter(BaseFilter):
     filter_params = {}
 
@@ -274,7 +270,7 @@ class FindSquaresFilter(BaseSliderFilter):
             cv.drawContours(output_cv, [contour], -1, color, thickness=1, lineType=cv.LINE_AA)
 
         return output_cv
-    
+
 
 class GaussianBlurFilter(BaseSliderFilter):
     filter_params = {'size': SliderInfo(1, 15, 2, 3)}
@@ -440,62 +436,340 @@ def segmented_intersections(lines):
     return intersections
 
 class HoughLinesFilter(BaseSliderFilter):
-    filter_params = {'rho': {'min_val': 0.0, 'max_val': 5.0, 'step_val': 0.1, 'init_val': 1.0},
-                     'theta': {'min_val': 0.0, 'max_val': 6.2, 'step_val': 0.01, 'init_val': np.pi/180.0},
-                     'threshold': {'min_val': 1, 'max_val': 250, 'step_val': 1, 'init_val': 100}
-                    #  'min_line_length': {'min_val': 1, 'max_val': 1000, 'step_val': 5},
-                    #  'max_gap': {'min_val': 1, 'max_val': 50, 'step_val': 5}
-                    }
+    filter_params = {'rho': {'min_val': 0.0, 'max_val': 2.0, 'step_val': 0.1, 'init_val': 1.0},
+                     'theta': {'min_val': 0.0, 'max_val': 360, 'step_val': 1, 'init_val': 1},
+                     'threshold': {'min_val': 1, 'max_val': 1000, 'step_val': 10, 'init_val': 100}
+                     #  'min_line_length': {'min_val': 1, 'max_val': 1000, 'step_val': 5},
+                     #  'max_gap': {'min_val': 1, 'max_val': 50, 'step_val': 5}
+                     }
 
     def update(self, src_cv):
         rho = self.widget_list[0].value
-        theta = self.widget_list[1].value
+        theta = 1 / (self.widget_list[1].value / np.pi)
         threshold = int(self.widget_list[2].value)
         # min_line_length = int(self.widget_list[3].value)
         # max_gap = int(self.widget_list[4].value)
 
         output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
 
-        lines = cv.HoughLines(src_cv, rho, theta, threshold, min_theta=np.pi/36, max_theta=np.pi-np.pi/36)
-        # for line in lines:
-        #     rho, theta = line[0]
-        #     a = np.cos(theta)
-        #     b = np.sin(theta)
-        #     x0 = a*rho
-        #     y0 = b*rho
-        #     x1 = int(x0 + 10000*(-b))
-        #     y1 = int(y0 + 10000*(a))
-        #     x2 = int(x0 - 10000*(-b))
-        #     y2 = int(y0 - 10000*(a))
-        #     cv.line(output_cv,(x1,y1),(x2,y2),(0,255,0),1)
-
-        for line in segmented_intersections(segment_by_angle_kmeans(lines)):
-            x1, y1 = line[0]
-            cv.line(output_cv, (x1, y1), (x1, y1), (0, 255, 0), 2)
-
+        lines = cv.HoughLines(src_cv, rho, theta, threshold, min_theta=np.pi / 36, max_theta=np.pi - np.pi / 36)
+        mul = 6000
+        for line in lines:
+            rho, theta = line[0]
+            a = np.cos(theta)
+            b = np.sin(theta)
+            x0 = a * rho
+            y0 = b * rho
+            x1 = int(x0 + mul * (-b))
+            y1 = int(y0 + mul * a)
+            x2 = int(x0 - mul * (-b))
+            y2 = int(y0 - mul * a)
+            cv.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
 
         return output_cv
 
 
 class HoughLinesPFilter(BaseSliderFilter):
     filter_params = {
-                     'threshold': {'min_val': 1, 'max_val': 250, 'step_val': 2, 'init_val': 101},
-                     'min_line_length': {'min_val': 1, 'max_val': 1000, 'step_val': 2},
-                     'max_gap': {'min_val': 2, 'max_val': 100, 'step_val': 1}
-                     }
+        'threshold': {'min_val': 1, 'max_val': 250, 'step_val': 1, 'init_val': 101},
+        'min_line_length': {'min_val': 1, 'max_val': 250, 'step_val': 1},
+        'max_gap': {'min_val': 2, 'max_val': 350, 'step_val': 1},
+        'min_slope': {'min_val': 0, 'max_val': 1, 'step_val': 0.01, 'init_val': 0.45},
+        'rho': {'min_val': 1, 'max_val': 5, 'step_val': 0.1, 'init_val': 1},
+        'theta': {'min_val': 0, 'max_val': 0.2, 'step_val': 0.001, 'init_val': np.pi / 180}
+    }
+
+
+class FillRectFilter(BaseSliderFilter):
+    filter_params = {
+        'left': {'min_val': 0, 'max_val': 100, 'step_val': 1, 'init_val': 0},
+        'top': {'min_val': 0, 'max_val': 100, 'step_val': 1, 'init_val': 0},
+        'right': {'min_val': 0, 'max_val': 100, 'step_val': 1, 'init_val': 100},
+        'bottom': {'min_val': 0, 'max_val': 100, 'step_val': 1, 'init_val': 100}}
+
+    def update(self, src_cv):
+        left = int(self.widget_list[0].value)
+        top = int(self.widget_list[1].value)
+        right = int(self.widget_list[2].value)
+        bottom = int(self.widget_list[3].value)
+        h, w, _ = src_cv.shape
+        src_cv[int(h * top / 100.0):int(h * bottom / 100.00), int(w * left / 100.0):int(w * right / 100.0)] = 0
+        return src_cv
+
+
+class VanishingPointFilter(BaseSliderFilter):
+    filter_params = {
+        'threshold': {'min_val': 1, 'max_val': 250, 'step_val': 1, 'init_val': 101},
+        'min_line_length': {'min_val': 1, 'max_val': 250, 'step_val': 1},
+        'max_gap': {'min_val': 2, 'max_val': 350, 'step_val': 1},
+        'min_slope': {'min_val': 0, 'max_val': 1, 'step_val': 0.01, 'init_val': 0.45},
+        'rho': {'min_val': 1, 'max_val': 5, 'step_val': 0.1, 'init_val': 1},
+        'theta': {'min_val': 0, 'max_val': 0.2, 'step_val': 0.001, 'init_val': np.pi / 180}
+    }
+
+    def line_intersection(self, line1, line2):
+        xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
+        ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
+
+        def det(a, b):
+            return a[0] * b[1] - a[1] * b[0]
+
+        div = det(xdiff, ydiff)
+        if div == 0:
+            return None
+
+        d = (det(*line1), det(*line2))
+        x = det(d, xdiff) / div
+        y = det(d, ydiff) / div
+        return int(x), round(y)
+
+    def find_intersections(self, lines_l, lines_r):
+        if not lines_l or not lines_r:
+            return []
+
+        intersections = []
+        for line_l in lines_l:
+            for line_r in lines_r:
+                intersect = self.line_intersection([line_l[:2], line_l[2:]], [line_r[:2], line_r[2:]])
+                if intersect:
+                    intersections.append(intersect)
+
+        return intersections
+
+    overlay = None
+    counter = Counter()
+    vps = np.array([])
+
+    def draw_vp(self, intersections, src_cv):
+        if self.overlay is None:
+            self.overlay = np.full(src_cv.shape, fill_value=0, dtype=np.uint8)
+
+        # lc = len(intersections) == 0
+        # if lc:
+        #     # print('low contrast')
+        #     config_temp = config.copy()
+        #     config_temp["canny_threshold1"] = 10
+        #     config_temp["canny_threshold2"] = 30
+        #     frame_edges = find_edges(frame, config_temp)
+        #     lines = find_lines(frame_edges, config_temp)
+        #     intersections = find_intersections(lines, config['slope_threshold'])
+        # print(len(intersections))
+        # self.counter = Counter()
+        if len(intersections) > 0:
+            self.counter.update(intersections)
+            most_common = self.counter.most_common(3)
+            most_common = np.array(most_common, dtype=object)
+            ws = most_common[:, 1] / sum(most_common[:, 1])
+            mean_x = int(np.average([xval[0] for xval in most_common[:, 0]], axis=0, weights=ws))
+            mean_y = int(np.average([xval[1] for xval in most_common[:, 0]], axis=0, weights=ws))
+            vp = (mean_x, mean_y)
+
+            overlay_to_display = self.overlay.copy()
+            cv.circle(overlay_to_display, vp, 11, (1, 1, 1), -1)
+            cv.circle(overlay_to_display, vp, 9, (0, 255, 255), -1)
+            overlay_to_display = cv.add(overlay_to_display, src_cv)
+
+            alpha = 0.5
+
+            _overlay = self.overlay.copy()
+            cv.circle(_overlay, vp, 5, (1, 1, 1), 1)
+            cv.circle(_overlay, vp, 4, (255, 255, 255), 1)
+            cv.circle(_overlay, vp, 3, (0, 255, 255), -1)
+            self.overlay = cv.addWeighted(_overlay, alpha, self.overlay, 1 - alpha, 0)
+
+            return vp, overlay_to_display
+
+        return None, self.overlay
+
+    def filter_slope(self, _line, ms):
+        x1, y1, x2, y2 = _line[0]
+        if x1 == x2:
+            return False
+        m = (y2 - y1) / (x2 - x1)
+        return not -ms < m < ms
+
+    def draw_lines(self, lines, output_cv):
+        for line in lines:
+            x1, y1, x2, y2 = line
+            cv.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
+            cv.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
+
+    def update(self, src_cv):
+        threshold = int(self.widget_list[0].value)
+        min_line_length = int(self.widget_list[1].value)
+        max_gap = int(self.widget_list[2].value)
+        min_slope = self.widget_list[3].value
+        rho = self.widget_list[4].value
+        theta = self.widget_list[5].value
+
+        frame_height, frame_width = src_cv.shape[:2]
+        output_cv = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
+
+        if False:
+            lines = cv.HoughLinesP(src_cv, rho, theta, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
+        else:
+            canny = cv.Canny(src_cv, 0, 30, edges=None, apertureSize=3, L2gradient=False)
+            lines = cv.HoughLinesP(canny, rho, theta, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
+            canny = cv.Canny(src_cv, 30, 140, edges=None, apertureSize=3, L2gradient=False)
+            lines = np.append(lines,
+                              cv.HoughLinesP(canny, rho, theta, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap),
+                              axis=0)
+
+        lines = [line[0] for line in lines if self.filter_slope(line, min_slope)]
+
+        lines_r = []
+        lines_l = []
+        middle_frame_x = int(frame_width / 2)
+        for line in lines:
+            x1, y1, x2, y2 = line
+            if x1 < middle_frame_x and x2 < middle_frame_x:
+                if (y1 - y2) * (x1 - x2) < 0:
+                    lines_l.append(line)
+
+            if middle_frame_x <= x1 and middle_frame_x <= x2:
+                if (y1 - y2) * (x1 - x2) > 0:
+                    lines_r.append(line)
+
+        self.draw_lines(lines_l, output_cv)
+        self.draw_lines(lines_r, output_cv)
+
+        intersections = self.find_intersections(lines_l, lines_r)
+        vp, output_cv = self.draw_vp(intersections, output_cv)
+        if vp:
+            cv.putText(output_cv, f'vp:{vp}', (0, 50), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 1)
+            self.vps = np.append(self.vps, vp)
+
+            mse = np.mean(np.mean((vp[0] - self.vps) ** 2)) ** 0.5
+            cv.putText(output_cv, f'mse:{mse}', (0, 250), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 1)
+
+        return output_cv
+
+
+class HoughLinesP2Filter(BaseSliderFilter):
+    def __init__(self, init_values):
+        super().__init__(init_values)
+        self.last_vp = None
+
+    filter_params = {
+        'threshold': {'min_val': 1, 'max_val': 250, 'step_val': 1, 'init_val': 101},
+        'min_line_length': {'min_val': 1, 'max_val': 1000, 'step_val': 1},
+        'max_gap': {'min_val': 2, 'max_val': 100, 'step_val': 1},
+        'min_slope': {'min_val': 0, 'max_val': 1, 'step_val': 0.01, 'init_val': 0.45}
+    }
+
+    def line_intersection(self, line1, line2):
+        xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
+        ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
+
+        def det(a, b):
+            return a[0] * b[1] - a[1] * b[0]
+
+        div = det(xdiff, ydiff)
+        if div == 0:
+            return None
+
+        d = (det(*line1), det(*line2))
+        x = det(d, xdiff) / div
+        y = det(d, ydiff) / div
+        return int(x), int(y)
+
+    def update(self, src_cv):
+        threshold = int(self.widget_list[0].value)
+        min_line_length = int(self.widget_list[1].value)
+        max_gap = int(self.widget_list[2].value)
+        min_slope = self.widget_list[3].value
+
+        # src_cv[:int(src_cv.shape[0] / 2), :] = 0
+
+        output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
+
+        intersections = []
+        lines = cv.HoughLinesP(src_cv, 1, np.pi / 180, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
+
+        def filter_slope(_line, ms):
+            x1, y1, x2, y2 = _line[0]
+            if x1 == x2:
+                return False
+            m = (y2 - y1) / (x2 - x1)
+            return not -ms < m < ms
+
+        lines = [line for line in lines if filter_slope(line, min_slope)]
+        # print(lines[0])
+        for i, line in enumerate(lines[:-1]):
+            for line2 in lines[i + 1:]:
+                intersect = self.line_intersection([line[0][:2], line[0][2:]], [line2[0][:2], line2[0][2:]])
+                if intersect:
+                    intersections.append(intersect)
+                    # cv.circle(output_cv, (intersect[0], intersect[1]), 3, (0, 255, 255), -1)
+
+        if len(intersections) > 0:
+
+            if False:
+                intersections = np.array(intersections, dtype=np.float32)
+
+                criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+                ret, labels, centers = cv.kmeans(intersections, 6, None, criteria, 10, cv.KMEANS_RANDOM_CENTERS)
+                # print(centers)
+                ret, labels, centers = cv.kmeans(centers, 1, None, criteria, 10, cv.KMEANS_RANDOM_CENTERS)
+                for c in centers:
+                    cv.circle(output_cv, c.astype(dtype=np.int), 5, (0, 128, 255), -1)
+                vp = (int(centers[0][0]), int(centers[0][1]))
+            else:
+                from collections import Counter
+                vp = Counter(intersections).most_common(1)[0][0]
+                print("orig:" + str(vp))
+                print("last:" + str(self.last_vp))
+
+            print(f'vp:{vp}')
+
+            if self.last_vp:
+                if self.last_vp[0] != 0 and self.last_vp[1] != 0:
+                    if (abs((vp[0] - self.last_vp[0]) / self.last_vp[0])) > 0.1:
+                        vp = self.last_vp[0], vp[1]
+                    if (abs((vp[1] - self.last_vp[1]) / self.last_vp[1])) > 0.1:
+                        vp = vp[0], self.last_vp[1]
+
+            self.last_vp = vp
+            print("last2:" + str(self.last_vp))
+        else:
+            vp = self.last_vp
+
+        cv.circle(output_cv, vp, 5, (0, 255, 255), -1)
+
+        return output_cv
+
+
+class HoughLinesP3Filter(BaseSliderFilter):
+    def __init__(self, init_values):
+        super().__init__(init_values)
+        self.last_vp = None
+
+    filter_params = {
+        'threshold': {'min_val': 1, 'max_val': 250, 'step_val': 1, 'init_val': 101},
+        'min_line_length': {'min_val': 1, 'max_val': 1000, 'step_val': 1},
+        'max_gap': {'min_val': 2, 'max_val': 100, 'step_val': 1}
+    }
 
     def update(self, src_cv):
         threshold = int(self.widget_list[0].value)
         min_line_length = int(self.widget_list[1].value)
         max_gap = int(self.widget_list[2].value)
 
+        # src_cv[:int(src_cv.shape[0] / 2), :] = 0
         output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
 
         lines = cv.HoughLinesP(src_cv, 1, np.pi / 180, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            cv.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        lines = np.ravel(lines).astype(dtype=np.float32)
+        lines = np.reshape(lines, (int(len(lines) / 2), 2))
+        # print(lines)
 
+        criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+        ret, labels, centers = cv.kmeans(lines, 4, None, criteria, 10, cv.KMEANS_RANDOM_CENTERS)
+        print(centers)
+        ret, labels, centers = cv.kmeans(centers, 1, None, criteria, 10, cv.KMEANS_RANDOM_CENTERS)
+        for c in centers:
+            cv.circle(output_cv, c.astype(dtype=np.int), 5, (0, 255, 255), -1)
+        # cv.circle(output_cv, c.astype(dtype=np.int), 5, (0, 255, 255), -1)
         return output_cv
 
 
@@ -521,6 +795,16 @@ class MaskFilter(BaseFilter):
     def update(self, src_cv):
         _, mask = cv2.threshold(cv2.cvtColor(src_cv[1], cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
         mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+
+        src_cv[0][mask > 0] = 0
+        src_cv[0] += src_cv[1] * (mask > 0)
+        return src_cv[0]
+
+
+class MaskFilter(BaseFilter):
+    def update(self, src_cv):
+        _, mask = cv.threshold(cv.cvtColor(src_cv[1], cv.COLOR_BGR2GRAY), 0, 255, cv.THRESH_BINARY)
+        mask = cv.cvtColor(mask, cv.COLOR_GRAY2BGR)
 
         src_cv[0][mask > 0] = 0
         src_cv[0] += src_cv[1] * (mask > 0)

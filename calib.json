@@ -1,52 +1,78 @@
 [
   {
-    "tid": "pt",
-    "filter": "PassthroughFilter",
-    "enabled": true
+    "tid": "original",
+    "filter": "PassthroughFilter"
+  },
+  {
+    "filter": "FillRectFilter",
+    "enabled": true,
+    "params": {
+      "top": 0,
+      "bottom": 50
+    }
+  },
+  {
+    "filter": "HSVFilter",
+    "enabled": false,
+    "params": {
+      "h-lo": 0,
+      "h-hi": 179,
+      "s-lo": 0,
+      "s-hi": 127,
+      "v-lo": 96,
+      "v-hi": 255
+    }
+  }
+  {
+    "filter": "BilateralFilter",
+    "enabled": true,
+    "params": {
+      "kernel": 3
+    }
   },
   {
     "filter": "GrayscaleFilter",
     "enabled": true
   },
   {
-    "filter": "DiffOfGaussianBlurFilter",
-    "enabled": false,
-    "params": {
-      "size1": 5,
-      "size2": 3
-    }
-  },
-  {
-    "tid": "canny",
     "filter": "CannyFilter",
     "enabled": true,
     "params": {
-      "thresh1": 60,
-      "thresh2": 160,
+      "thresh1": 30,
+      "thresh2": 100,
       "aperture_size": 3
     }
   },
   {
-    "tid": "ho",
-    "filter": "HoughLinesPFilter",
+    "tid": "vanishing point",
+    "filter": "VanishingPointFilter",
     "enabled": true,
     "params": {
-      "min_line_length": 30,
-      "max_gap": 10
+      "threshold": 45,
+      "min_line_length": 80,
+      "max_gap": 30,
+      "min_slope": 0.15
     }
   },
   {
+    "tid": "ho2",
     "filter": "HoughLinesFilter",
     "enabled": false,
     "params": {
       "rho": 1,
-      "theta": 0.0026,
+      "theta": 0.0174,
       "threshold": 250
     }
   },
   {
-    "filter": "BitwiseOrFilter",
+    "name": "VP overlay",
+    "filter": "MaskFilter",
     "enabled": true,
-    "inputs": ["pt", "ho"]
+    "inputs": [
+      "original",
+      "vanishing point"
+    ]
   }
+
 ]
+
