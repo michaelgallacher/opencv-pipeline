@@ -34,12 +34,12 @@
     }
   },
   {
-    "tid": "passthrough",
+    "output_id": "passthrough",
     "filter": "PassthroughFilter",
     "enabled": false
   },
   {
-    "tid": "hsv",
+    "output_id": "hsv",
     "filter": "HSVFilter",
     "enabled": false,
     "params": {
@@ -53,7 +53,7 @@
     "input": "passthrough"
   },
   {
-    "tid": "grayscale",
+    "output_id": "grayscale",
     "filter": "GrayscaleFilter",
     "enabled": false,
     "input": "passthrough"
@@ -75,7 +75,7 @@
     }
   },
   {
-    "tid": "grayscale2",
+    "output_id": "grayscale2",
     "filter": "GrayscaleFilter",
     "enabled": false
   },
@@ -95,7 +95,7 @@
     "enabled": false
   },
   {
-    "tid": "gradient_threshold",
+    "output_id": "gradient_threshold",
     "filter": "ThresholdFilter",
     "enabled": false,
     "params": {

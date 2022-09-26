@@ -181,7 +181,6 @@ class DiffOfGaussianBlurFilter(BaseSliderFilter):
         return cv2.GaussianBlur(src_cv, (size1, size1), 0) - cv2.GaussianBlur(src_cv, (size2, size2), 0)
 
 
-
 class EqualizeHistogramFilter(BaseFilter):
     filter_params = {}
 
@@ -245,20 +244,20 @@ class FindSquaresFilter(BaseSliderFilter):
     def update(self, src_cv):
         arc_length = self.widget_list[0].value
         img = src_cv
-        img = cv.GaussianBlur(img, (5, 5), 0)
+        img = cv2.GaussianBlur(img, (5, 5), 0)
         squares = []
-        for gray in cv.split(img):
-            for thrs in range(0, 255, 26):
-                if thrs == 0:
-                    bin = cv.Canny(gray, 0, 50, apertureSize=5)
-                    bin = cv.dilate(bin, None)
+        for gray in cv2.split(img):
+            for threshold in range(0, 255, 26):
+                if threshold == 0:
+                    _bin = cv2.Canny(gray, 0, 50, apertureSize=5)
+                    _bin = cv2.dilate(_bin, None)
                 else:
-                    _retval, bin = cv.threshold(gray, thrs, 255, cv.THRESH_BINARY)
-                contours, _hierarchy = cv.findContours(bin, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE)
+                    _retval, _bin = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+                contours, _hierarchy = cv2.findContours(_bin, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                 for cnt in contours:
-                    cnt_len = cv.arcLength(cnt, True)
-                    cnt = cv.approxPolyDP(cnt, arc_length * cnt_len, True)
-                    if len(cnt) >= 4 and cv.contourArea(cnt) > 1000:
+                    cnt_len = cv2.arcLength(cnt, True)
+                    cnt = cv2.approxPolyDP(cnt, arc_length * cnt_len, True)
+                    if len(cnt) >= 4 and cv2.contourArea(cnt) > 1000:
                         cnt = cnt.reshape(-1, 2)
                         max_cos = np.max([angle_cos(cnt[i], cnt[(i + 1) % 4], cnt[(i + 2) % 4]) for i in range(4)])
                         if max_cos < 0.2:
@@ -267,7 +266,7 @@ class FindSquaresFilter(BaseSliderFilter):
         output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
         for contour in squares:
             color = (128, 255, 255)  # (rng.randint(65, 256), rng.randint(65, 256), rng.randint(65, 256))
-            cv.drawContours(output_cv, [contour], -1, color, thickness=1, lineType=cv.LINE_AA)
+            cv2.drawContours(output_cv, [contour], -1, color, thickness=1, lineType=cv2.LINE_AA)
 
         return output_cv
 
@@ -321,10 +320,10 @@ class HarrisCornerFilter(BaseSliderFilter):
         k = self.widget_list[2].value
         threshold = self.widget_list[3].value
 
-        gray = cv.cvtColor(src_cv, cv.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(src_cv, cv2.COLOR_BGR2GRAY)
         gray = np.float32(gray)
-        dst = cv.cornerHarris(gray, block_size, ksize, k)
-        dst = cv.dilate(dst, None)
+        dst = cv2.cornerHarris(gray, block_size, ksize, k)
+        dst = cv2.dilate(dst, None)
         src_cv[dst > threshold * dst.max()] = [0, 255, 255]
         return src_cv
 
@@ -422,7 +421,6 @@ def intersection(line1, line2):
     x0, y0 = int(np.round(x0)), int(np.round(y0))
     return [[x0, y0]]
 
-
 def segmented_intersections(lines):
     """Finds the intersections between groups of lines."""
 
@@ -439,20 +437,16 @@ class HoughLinesFilter(BaseSliderFilter):
     filter_params = {'rho': {'min_val': 0.0, 'max_val': 2.0, 'step_val': 0.1, 'init_val': 1.0},
                      'theta': {'min_val': 0.0, 'max_val': 360, 'step_val': 1, 'init_val': 1},
                      'threshold': {'min_val': 1, 'max_val': 1000, 'step_val': 10, 'init_val': 100}
-                     #  'min_line_length': {'min_val': 1, 'max_val': 1000, 'step_val': 5},
-                     #  'max_gap': {'min_val': 1, 'max_val': 50, 'step_val': 5}
                      }
 
     def update(self, src_cv):
         rho = self.widget_list[0].value
         theta = 1 / (self.widget_list[1].value / np.pi)
         threshold = int(self.widget_list[2].value)
-        # min_line_length = int(self.widget_list[3].value)
-        # max_gap = int(self.widget_list[4].value)
 
         output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
 
-        lines = cv.HoughLines(src_cv, rho, theta, threshold, min_theta=np.pi / 36, max_theta=np.pi - np.pi / 36)
+        lines = cv2.HoughLines(src_cv, rho, theta, threshold, min_theta=np.pi / 36, max_theta=np.pi - np.pi / 36)
         mul = 6000
         for line in lines:
             rho, theta = line[0]
@@ -464,7 +458,7 @@ class HoughLinesFilter(BaseSliderFilter):
             y1 = int(y0 + mul * a)
             x2 = int(x0 - mul * (-b))
             y2 = int(y0 - mul * a)
-            cv.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
+            cv2.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
 
         return output_cv
 
@@ -502,12 +496,11 @@ class VanishingPointFilter(BaseSliderFilter):
         'threshold': {'min_val': 1, 'max_val': 250, 'step_val': 1, 'init_val': 101},
         'min_line_length': {'min_val': 1, 'max_val': 250, 'step_val': 1},
         'max_gap': {'min_val': 2, 'max_val': 350, 'step_val': 1},
-        'min_slope': {'min_val': 0, 'max_val': 1, 'step_val': 0.01, 'init_val': 0.45},
-        'rho': {'min_val': 1, 'max_val': 5, 'step_val': 0.1, 'init_val': 1},
-        'theta': {'min_val': 0, 'max_val': 0.2, 'step_val': 0.001, 'init_val': np.pi / 180}
+        'min_slope': {'min_val': 0, 'max_val': 1, 'step_val': 0.01, 'init_val': 0.45}
     }
 
-    def line_intersection(self, line1, line2):
+    @classmethod
+    def line_intersection(cls, line1, line2):
         xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
         ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
 
@@ -523,22 +516,19 @@ class VanishingPointFilter(BaseSliderFilter):
         y = det(d, ydiff) / div
         return int(x), round(y)
 
-    def find_intersections(self, lines_l, lines_r):
+    @classmethod
+    def find_intersections(cls, lines_l, lines_r):
         if not lines_l or not lines_r:
             return []
 
         intersections = []
         for line_l in lines_l:
             for line_r in lines_r:
-                intersect = self.line_intersection([line_l[:2], line_l[2:]], [line_r[:2], line_r[2:]])
+                intersect = cls.line_intersection([line_l[:2], line_l[2:]], [line_r[:2], line_r[2:]])
                 if intersect:
                     intersections.append(intersect)
 
         return intersections
-
-    overlay = None
-    counter = Counter()
-    vps = np.array([])
 
     def draw_vp(self, intersections, src_cv):
         if self.overlay is None:
@@ -565,54 +555,60 @@ class VanishingPointFilter(BaseSliderFilter):
             vp = (mean_x, mean_y)
 
             overlay_to_display = self.overlay.copy()
-            cv.circle(overlay_to_display, vp, 11, (1, 1, 1), -1)
-            cv.circle(overlay_to_display, vp, 9, (0, 255, 255), -1)
-            overlay_to_display = cv.add(overlay_to_display, src_cv)
+            cv2.circle(overlay_to_display, vp, 11, (1, 1, 1), -1)
+            cv2.circle(overlay_to_display, vp, 9, (0, 255, 255), -1)
+            overlay_to_display = cv2.add(overlay_to_display, src_cv)
 
             alpha = 0.5
 
             _overlay = self.overlay.copy()
-            cv.circle(_overlay, vp, 5, (1, 1, 1), 1)
-            cv.circle(_overlay, vp, 4, (255, 255, 255), 1)
-            cv.circle(_overlay, vp, 3, (0, 255, 255), -1)
-            self.overlay = cv.addWeighted(_overlay, alpha, self.overlay, 1 - alpha, 0)
+            cv2.circle(_overlay, vp, 5, (1, 1, 1), 1)
+            cv2.circle(_overlay, vp, 4, (255, 255, 255), 1)
+            cv2.circle(_overlay, vp, 3, (0, 255, 255), -1)
+            self.overlay = cv2.addWeighted(_overlay, alpha, self.overlay, 1 - alpha, 0)
 
             return vp, overlay_to_display
 
         return None, self.overlay
 
-    def filter_slope(self, _line, ms):
+    @staticmethod
+    def filter_slope(_line, ms):
         x1, y1, x2, y2 = _line[0]
         if x1 == x2:
             return False
         m = (y2 - y1) / (x2 - x1)
         return not -ms < m < ms
 
-    def draw_lines(self, lines, output_cv):
+    @staticmethod
+    def draw_lines(lines, output_cv):
         for line in lines:
             x1, y1, x2, y2 = line
-            cv.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
-            cv.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
+            cv2.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
+            cv2.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
+
+    overlay = None
+    counter = Counter()
+    vps = np.array([])
 
     def update(self, src_cv):
         threshold = int(self.widget_list[0].value)
         min_line_length = int(self.widget_list[1].value)
         max_gap = int(self.widget_list[2].value)
         min_slope = self.widget_list[3].value
-        rho = self.widget_list[4].value
-        theta = self.widget_list[5].value
+        rho = 1
+        theta = np.pi / 180
 
         frame_height, frame_width = src_cv.shape[:2]
         output_cv = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
 
         if False:
-            lines = cv.HoughLinesP(src_cv, rho, theta, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
+            lines = cv2.HoughLinesP(src_cv, rho, theta, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
         else:
-            canny = cv.Canny(src_cv, 0, 30, edges=None, apertureSize=3, L2gradient=False)
-            lines = cv.HoughLinesP(canny, rho, theta, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
-            canny = cv.Canny(src_cv, 30, 140, edges=None, apertureSize=3, L2gradient=False)
+            canny = cv2.Canny(src_cv, 0, 30, edges=None, apertureSize=3, L2gradient=False)
+            lines = cv2.HoughLinesP(canny, rho, theta, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
+            canny = cv2.Canny(src_cv, 30, 140, edges=None, apertureSize=3, L2gradient=False)
             lines = np.append(lines,
-                              cv.HoughLinesP(canny, rho, theta, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap),
+                              cv2.HoughLinesP(canny, rho, theta, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap),
                               axis=0)
 
         lines = [line[0] for line in lines if self.filter_slope(line, min_slope)]
@@ -636,11 +632,11 @@ class VanishingPointFilter(BaseSliderFilter):
         intersections = self.find_intersections(lines_l, lines_r)
         vp, output_cv = self.draw_vp(intersections, output_cv)
         if vp:
-            cv.putText(output_cv, f'vp:{vp}', (0, 50), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 1)
+            cv2.putText(output_cv, f'vp:{vp}', (0, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 1)
             self.vps = np.append(self.vps, vp)
 
             mse = np.mean(np.mean((vp[0] - self.vps) ** 2)) ** 0.5
-            cv.putText(output_cv, f'mse:{mse}', (0, 250), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 1)
+            cv2.putText(output_cv, f'mse:{mse}', (0, 250), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 1)
 
         return output_cv
 
@@ -803,8 +799,8 @@ class MaskFilter(BaseFilter):
 
 class MaskFilter(BaseFilter):
     def update(self, src_cv):
-        _, mask = cv.threshold(cv.cvtColor(src_cv[1], cv.COLOR_BGR2GRAY), 0, 255, cv.THRESH_BINARY)
-        mask = cv.cvtColor(mask, cv.COLOR_GRAY2BGR)
+        _, mask = cv2.threshold(cv2.cvtColor(src_cv[1], cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
+        mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
 
         src_cv[0][mask > 0] = 0
         src_cv[0] += src_cv[1] * (mask > 0)

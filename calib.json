@@ -1,6 +1,6 @@
 [
   {
-    "tid": "original",
+    "output_id": "original",
     "filter": "PassthroughFilter"
   },
   {
@@ -11,18 +11,6 @@
       "bottom": 50
     }
   },
-  {
-    "filter": "HSVFilter",
-    "enabled": false,
-    "params": {
-      "h-lo": 0,
-      "h-hi": 179,
-      "s-lo": 0,
-      "s-hi": 127,
-      "v-lo": 96,
-      "v-hi": 255
-    }
-  }
   {
     "filter": "BilateralFilter",
     "enabled": true,
@@ -44,7 +32,7 @@
     }
   },
   {
-    "tid": "vanishing point",
+    "output_id": "vanishing point",
     "filter": "VanishingPointFilter",
     "enabled": true,
     "params": {
@@ -52,16 +40,6 @@
       "min_line_length": 80,
       "max_gap": 30,
       "min_slope": 0.15
-    }
-  },
-  {
-    "tid": "ho2",
-    "filter": "HoughLinesFilter",
-    "enabled": false,
-    "params": {
-      "rho": 1,
-      "theta": 0.0174,
-      "threshold": 250
     }
   },
   {
@@ -73,6 +51,5 @@
       "vanishing point"
     ]
   }
-
 ]
 

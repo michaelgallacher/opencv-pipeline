@@ -14,7 +14,7 @@
     }
   },
   {
-    "tid": "threshold",
+    "name": "threshold",
     "filter": "ThresholdFilter",
     "enabled": true,
     "params": {
@@ -24,7 +24,7 @@
   },
   {
     "input": "threshold",
-    "tid": "morph_y",
+    "output_id": "morph_y",
     "filter": "MorphFilter",
     "enabled": true,
     "params": {
@@ -51,7 +51,7 @@
     }
   },
   {
-    "tid": "canny_y",
+    "output_id": "canny_y",
     "filter": "CannyFilter",
     "enabled": true,
     "params": {
@@ -62,7 +62,7 @@
     }
   },
   {
-    "tid": "morph_x",
+    "output_id": "morph_x",
     "input": "threshold",
     "filter": "MorphFilter",
     "enabled": true,
@@ -90,7 +90,7 @@
     }
   },
   {
-    "tid": "canny_x",
+    "output_id": "canny_x",
     "filter": "CannyFilter",
     "enabled": true,
     "params": {

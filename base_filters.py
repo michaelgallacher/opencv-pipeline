@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 from kivy.animation import Animation
 from kivy.lang import Builder
 from kivy.properties import BooleanProperty, StringProperty
