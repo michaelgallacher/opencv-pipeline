@@ -239,7 +239,7 @@ class FindSquaresFilter(BaseSliderFilter):
 
 
 class FindSquaresFilter(BaseSliderFilter):
-    filter_params = {'arc_length': {'min_val': 0, 'max_val': 0.5, 'step_val': 0.001}}
+    filter_params = {'arc_length': SliderInfo(0, 0.5, 0.001, 0.24)}
 
     def update(self, src_cv):
         arc_length = self.widget_list[0].value
@@ -308,10 +308,10 @@ class HarrisCornerFilter(BaseSliderFilter):
 
 
 class HarrisCornerFilter(BaseSliderFilter):
-    filter_params = {'block_size': {'min_val': 1, 'max_val': 5, 'step_val': 1},
-                     'ksize': {'min_val': 1, 'max_val': 25, 'step_val': 2},
-                     'k': {'min_val': 0.0, 'max_val': 1.0, 'step_val': 0.01},
-                     'threshold': {'min_val': 0.0, 'max_val': 1.0, 'step_val': 0.01}
+    filter_params = {'block_size': SliderInfo(1, 5, 1, 3),
+                     'ksize': SliderInfo(1, 25, 2, 3),
+                     'k': SliderInfo(0, 1, 0.01, 0),
+                     'threshold': SliderInfo(0, 1, 0.01, 0)
                      }
 
     def update(self, src_cv):
@@ -434,9 +434,9 @@ def segmented_intersections(lines):
     return intersections
 
 class HoughLinesFilter(BaseSliderFilter):
-    filter_params = {'rho': {'min_val': 0.0, 'max_val': 2.0, 'step_val': 0.1, 'init_val': 1.0},
-                     'theta': {'min_val': 0.0, 'max_val': 360, 'step_val': 1, 'init_val': 1},
-                     'threshold': {'min_val': 1, 'max_val': 1000, 'step_val': 10, 'init_val': 100}
+    filter_params = {'rho': SliderInfo(0.0, 2.0, 0.1, 0),
+                     'theta': SliderInfo(0.0, 360, 1, 0),
+                     'threshold': SliderInfo(1, 1000, 10, 100)
                      }
 
     def update(self, src_cv):
@@ -465,21 +465,32 @@ class HoughLinesFilter(BaseSliderFilter):
 
 class HoughLinesPFilter(BaseSliderFilter):
     filter_params = {
-        'threshold': {'min_val': 1, 'max_val': 250, 'step_val': 1, 'init_val': 101},
-        'min_line_length': {'min_val': 1, 'max_val': 250, 'step_val': 1},
-        'max_gap': {'min_val': 2, 'max_val': 350, 'step_val': 1},
-        'min_slope': {'min_val': 0, 'max_val': 1, 'step_val': 0.01, 'init_val': 0.45},
-        'rho': {'min_val': 1, 'max_val': 5, 'step_val': 0.1, 'init_val': 1},
-        'theta': {'min_val': 0, 'max_val': 0.2, 'step_val': 0.001, 'init_val': np.pi / 180}
+        'threshold': SliderInfo(1, 250, 2, 101),
+        'min_line_length': SliderInfo(1, 500, 1, 10),
+        'max_gap': SliderInfo(0, 250, 5, 5),
     }
+
+    def update(self, src_cv):
+        threshold = int(self.widget_list[0].value)
+        min_line_length = int(self.widget_list[1].value)
+        max_gap = int(self.widget_list[2].value)
+
+        output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
+
+        lines = cv2.HoughLinesP(src_cv, 1, np.pi / 180, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            cv2.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        return output_cv
 
 
 class FillRectFilter(BaseSliderFilter):
     filter_params = {
-        'left': {'min_val': 0, 'max_val': 100, 'step_val': 1, 'init_val': 0},
-        'top': {'min_val': 0, 'max_val': 100, 'step_val': 1, 'init_val': 0},
-        'right': {'min_val': 0, 'max_val': 100, 'step_val': 1, 'init_val': 100},
-        'bottom': {'min_val': 0, 'max_val': 100, 'step_val': 1, 'init_val': 100}}
+        'left': SliderInfo(0, 100, 1, 0),
+        'top': SliderInfo(0, 100, 1, 0),
+        'right': SliderInfo(0, 100, 1, 100),
+        'bottom': SliderInfo(0, 100, 1, 100)}
 
     def update(self, src_cv):
         left = int(self.widget_list[0].value)
@@ -990,3 +1001,153 @@ class ThresholdFilter(BaseSliderFilter):
         val = self.widget_list[0].value
         oper_int = self.get_operator_code(int(self.widget_list[1].value))
         return cv2.threshold(src_cv, val, 255, oper_int)[1]
+
+
+class VanishingPointFilter(BaseSliderFilter):
+    filter_params = {
+        'threshold': SliderInfo(1, 250, 1, 101),
+        'min_line_length': SliderInfo(1, 250, 1, 10),
+        'max_gap': SliderInfo(2, 350, 1, 20),
+        'min_slope': SliderInfo(0, 1, 0.01, 0)
+    }
+
+    @classmethod
+    def line_intersection(cls, line1, line2):
+        xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
+        ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
+
+        def det(a, b):
+            return a[0] * b[1] - a[1] * b[0]
+
+        div = det(xdiff, ydiff)
+        if div == 0:
+            return None
+
+        d = (det(*line1), det(*line2))
+        x = det(d, xdiff) / div
+        y = det(d, ydiff) / div
+        return int(x), round(y)
+
+    @classmethod
+    def find_intersections(cls, lines_l, lines_r):
+        if not lines_l or not lines_r:
+            return []
+
+        intersections = []
+        for line_l in lines_l:
+            for line_r in lines_r:
+                intersect = cls.line_intersection([line_l[:2], line_l[2:]], [line_r[:2], line_r[2:]])
+                if intersect:
+                    intersections.append(intersect)
+
+        return intersections
+
+    def draw_vp(self, intersections, src_cv):
+        if self.overlay is None:
+            self.overlay = np.full(src_cv.shape, fill_value=0, dtype=np.uint8)
+
+        # lc = len(intersections) == 0
+        # if lc:
+        #     # print('low contrast')
+        #     config_temp = config.copy()
+        #     config_temp["canny_threshold1"] = 10
+        #     config_temp["canny_threshold2"] = 30
+        #     frame_edges = find_edges(frame, config_temp)
+        #     lines = find_lines(frame_edges, config_temp)
+        #     intersections = find_intersections(lines, config['slope_threshold'])
+        # print(len(intersections))
+        # self.counter = Counter()
+        if len(intersections) > 0:
+            self.counter.update(intersections)
+            most_common = self.counter.most_common(3)
+            most_common = np.array(most_common, dtype=object)
+            ws = most_common[:, 1] / sum(most_common[:, 1])
+            mean_x = int(np.average([xval[0] for xval in most_common[:, 0]], axis=0, weights=ws))
+            mean_y = int(np.average([xval[1] for xval in most_common[:, 0]], axis=0, weights=ws))
+            vp = (mean_x, mean_y)
+
+            overlay_to_display = self.overlay.copy()
+            cv2.circle(overlay_to_display, vp, 11, (1, 1, 1), -1)
+            cv2.circle(overlay_to_display, vp, 9, (0, 255, 255), -1)
+            overlay_to_display = cv2.add(overlay_to_display, src_cv)
+
+            alpha = 0.5
+
+            _overlay = self.overlay.copy()
+            cv2.circle(_overlay, vp, 5, (1, 1, 1), 1)
+            cv2.circle(_overlay, vp, 4, (255, 255, 255), 1)
+            cv2.circle(_overlay, vp, 3, (0, 255, 255), -1)
+            self.overlay = cv2.addWeighted(_overlay, alpha, self.overlay, 1 - alpha, 0)
+
+            return vp, overlay_to_display
+
+        return None, self.overlay
+
+    @staticmethod
+    def filter_slope(_line, ms):
+        x1, y1, x2, y2 = _line[0]
+        if x1 == x2:
+            return False
+        m = (y2 - y1) / (x2 - x1)
+        return not -ms < m < ms
+
+    @staticmethod
+    def draw_lines(lines, output_cv):
+        for line in lines:
+            x1, y1, x2, y2 = line
+            cv2.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
+            cv2.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
+
+    overlay = None
+    counter = Counter()
+    vps = np.array([])
+
+    def update(self, src_cv):
+        threshold = int(self.widget_list[0].value)
+        min_line_length = int(self.widget_list[1].value)
+        max_gap = int(self.widget_list[2].value)
+        min_slope = self.widget_list[3].value
+        rho = 1
+        theta = np.pi / 180
+
+        frame_height, frame_width = src_cv.shape[:2]
+        output_cv = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
+
+        if False:
+            lines = cv2.HoughLinesP(src_cv, rho, theta, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
+        else:
+            canny = cv2.Canny(src_cv, 0, 30, edges=None, apertureSize=3, L2gradient=False)
+            lines = cv2.HoughLinesP(canny, rho, theta, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
+            canny = cv2.Canny(src_cv, 30, 140, edges=None, apertureSize=3, L2gradient=False)
+            lines = np.append(lines,
+                              cv2.HoughLinesP(canny, rho, theta, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap),
+                              axis=0)
+
+        lines = [line[0] for line in lines if self.filter_slope(line, min_slope)]
+
+        lines_r = []
+        lines_l = []
+        middle_frame_x = int(frame_width / 2)
+        for line in lines:
+            x1, y1, x2, y2 = line
+            if x1 < middle_frame_x and x2 < middle_frame_x:
+                if (y1 - y2) * (x1 - x2) < 0:
+                    lines_l.append(line)
+
+            if middle_frame_x <= x1 and middle_frame_x <= x2:
+                if (y1 - y2) * (x1 - x2) > 0:
+                    lines_r.append(line)
+
+        self.draw_lines(lines_l, output_cv)
+        self.draw_lines(lines_r, output_cv)
+
+        intersections = self.find_intersections(lines_l, lines_r)
+        vp, output_cv = self.draw_vp(intersections, output_cv)
+        if vp:
+            cv2.putText(output_cv, f'vp:{vp}', (0, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 1)
+            self.vps = np.append(self.vps, vp)
+
+            mse = np.mean(np.mean((vp[0] - self.vps) ** 2)) ** 0.5
+            cv2.putText(output_cv, f'mse:{mse}', (0, 250), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 1)
+
+        return output_cv
