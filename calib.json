@@ -12,19 +12,12 @@
     }
   },
   {
-    "filter": "BilateralFilter",
-    "enabled": true,
-    "params": {
-      "kernel": 3
-    }
-  },
-  {
     "filter": "GrayscaleFilter",
     "enabled": true
   },
   {
     "filter": "CannyFilter",
-    "enabled": true,
+    "enabled": false,
     "params": {
       "thresh1": 30,
       "thresh2": 100,
