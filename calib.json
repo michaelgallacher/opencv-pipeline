@@ -25,13 +25,22 @@
     }
   },
   {
+    "filter": "HoughLinesPFilter",
+    "enabled": false,
+    "params": {
+      "threshold": 45,
+      "min_line_length": 80,
+      "max_gap": 120
+    }
+  },
+  {
     "output_id": "vanishing point",
     "filter": "VanishingPointFilter",
     "enabled": true,
     "params": {
       "threshold": 45,
       "min_line_length": 80,
-      "max_gap": 30,
+      "max_gap": 120,
       "min_slope": 0.15
     }
   },
