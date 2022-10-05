@@ -2,7 +2,7 @@
 A tool to visualize a series of computer vision operations on an image.
 
 ## Overview
-I wrote this tool to debug and visualze OpenCV pipelines.  A pipeline consists of a series of OpenCV operations (known in this project as 'filters'.) Each filter accepts a single OpenCV image, performs some operation, and returns the updated OpenCV matrix.
+I wrote this tool to debug and visualize OpenCV pipelines.  A pipeline consists of a series of OpenCV operations (known in this project as 'filters'.) Each filter accepts a single OpenCV image, performs some operation, and returns the updated OpenCV matrix.
 
 The pipline follows a simple sequence, as follows:
 1. It is provided an original source image.
@@ -41,7 +41,7 @@ The following parameters are available.
 ```  
 optional arguments:
    -h, --help                          show this help message and exit
-   -i IMAGE, --image IMAGE             path to input image
+   -i PATH, --image PATH               path to input image or video
    -p PIPELINE, --pipeline PIPELINE    path to json describing pipeline
 ```
 
@@ -52,9 +52,10 @@ The JSON file supports the following tags:
 | _` filter`_ | The name of the class in the opencv-filters.py file | Required |
  _`params`_ | Filter-specific parameters used to set initial values | Required if there are any params
  _`enabled`_ | If false, the filter becomes a NOP | Optional
- _`tid`_ | This ID is used as the display name; filters declared below this filter can use the 'tid' as an input | Optional
- _`input`_ | Specifies the 'tid' of the filter to use as the input image; if this is not specified, the filter uses the image produced by the filter immediately above it in the file | Optional
- _`inputs`_ | A list of 'tid' values which will be passed as a list to the input of the filter; useful for BitwiseAnd/Or filters | Optional, but required to join parallel series.
+ _`output_id`_ | Filters declared below this filter can use the 'output_id' as an input | Optional
+ _`name`_ | This is used as the display name; if not provided, the python class name is used | Optional
+ _`input`_ | Specifies the 'output_id' of the filter to use as the input image; if this is not specified, the filter uses the image produced by the filter immediately above it in the pipeline. | Optional
+ _`inputs`_ | A list of 'output_id' values which will be passed as a list to the input of the filter; useful for BitwiseAnd/Or filters | Optional, but required to join parallel branches of the pipeline.
 
 
 ## To Do

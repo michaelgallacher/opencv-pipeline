@@ -84,6 +84,16 @@ Builder.load_string('''
 ''')
 
 
+# Note to self: don't try this again...tuples are immutable.
+# SliderInfo = namedtuple('SliderInfo', 'min_val max_val step_val init_val')
+class SliderInfo:
+    def __init__(self, min_val, max_val, step_val, init_val):
+        self.min_val = min_val
+        self.max_val = max_val
+        self.step_val = step_val
+        self.init_val = init_val
+
+
 class BaseFilter(BoxLayout):
     is_enabled = BooleanProperty(defaultvalue=False)
     is_selected = BooleanProperty(defaultvalue=False)
@@ -114,7 +124,7 @@ class BaseFilter(BoxLayout):
 
     def on_is_collapsed(self, instance, value):
         if self.controls not in self.controls_holder.children:
-            anim = Animation(height=self.title_layout.height+self.controls.height, duration=0.05)
+            anim = Animation(height=self.title_layout.height + self.controls.height, duration=0.05)
             anim.bind(on_complete=self.on_complete)
             anim.start(self)
         else:
@@ -164,12 +174,12 @@ class BaseSliderFilter(BaseFilter):
 
         # set the initial values as specified by the pipeline
         for key, init_value in init_values.items():
-            all_params[key]['init_val'] = init_value
+            all_params[key].init_val = init_value
 
         # create all the widgets
         for name, params in all_params.items():
             # Add slider to widgets
-            slider_widget = Slider(min=params['min_val'], max=params['max_val'], value=params['init_val'], step=params['step_val'])
+            slider_widget = Slider(min=params.min_val, max=params.max_val, value=params.init_val, step=params.step_val)
             slider_widget.label_name = name
             slider_widget.bind(value=self._on_value_changed)
             slider_widget.size_hint_y = None
@@ -183,7 +193,7 @@ class BaseSliderFilter(BaseFilter):
             widget_label = Label(size_hint=(1, None))
             widget_label.label_name = name
             widget_label.display_callback = self.get_display_callback(name)
-            widget_label.text = self.get_widget_display_text(widget_label, str(int(params['init_val'])))
+            widget_label.text = self.get_widget_display_text(widget_label, str(int(params.init_val)))
             widget_label.texture_update()
             widget_label.height = widget_label.texture_size[1]
             slider_widget.label_widget = widget_label

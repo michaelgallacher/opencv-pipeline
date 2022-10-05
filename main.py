@@ -1,19 +1,21 @@
 import argparse
+import cv2
 import importlib
 import json
+import numpy as np
 import os
 import traceback
-from collections import namedtuple
 
 # To enable command-line arguments, this line MUST BE ABOVE all kivy import statements
 os.environ['KIVY_NO_ARGS'] = '1'
 
 # To enable a maximized window, this line MUST BE ABOVE all kivy import statements...except the previous one.
 from kivy.config import Config
+
 Config.set('graphics', 'window_state', 'maximized')
 
 from kivy.core.image import Image as CoreImage
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Rectangle
 from kivy.clock import Clock
 from kivy.uix.actionbar import ActionBar, ActionView, ActionButton, ActionPrevious
 from kivy.properties import ObjectProperty
@@ -27,11 +29,7 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.splitter import Splitter
 
 from DragDrop import DraggableBoxLayoutBehavior
-from opencv_filters import *
 from util import cv_to_kivy_texture
-
-SliderInfo = namedtuple('SliderInfo', 'name min_val max_val init_val step_val')
-SliderInfo2 = namedtuple('SliderInfo', 'min_val max_val step_val')
 
 
 class DraggableAccordionLayout(DraggableBoxLayoutBehavior, GridLayout):
@@ -77,37 +75,44 @@ class Pipeline(DraggableAccordionLayout):
         filter_widget.update_ui()
         self.add_widget(filter_widget)
 
+    def on_new_frame(self):
+        for _filter in self.children:
+            if callable(getattr(_filter, 'on_new_frame', None)):
+                _filter.on_new_frame()
+
     # noinspection PyBroadException
     def update(self):
-        images_with_tids = {}
+        images_with_outputs = {}
         next_image = self.src_cv.copy()
         for _filter in reversed(self.children):
             if _filter.is_enabled:
                 try:
                     # use the custom input image(s), if any
                     if _filter.input:
-                        next_image = images_with_tids[_filter.input]
+                        next_image = images_with_outputs[_filter.input]
                     elif _filter.inputs:
-                        next_image = list(map(lambda i: images_with_tids[i], _filter.inputs))
+                        next_image = list(map(lambda i: images_with_outputs[i], _filter.inputs))
 
                     # process the image and update the id table, if necessary.
-                    next_image = _filter.update(next_image)
+                    next_image = _filter.update(next_image.copy())
+                    assert type(next_image) == np.ndarray, 'filter.update(...) must return a valid image'
 
-                    if _filter.tid:
-                        images_with_tids[_filter.tid] = next_image
-
+                    if _filter.output_id:
+                        images_with_outputs[_filter.output_id] = next_image
                     # clear any error
                     _filter.error = ''
 
                     # set the preview if the widget is selected
                     if _filter.is_selected:
                         self.preview.texture = cv_to_kivy_texture(next_image)
-                        # the preview for the pipeline is set so skip the rest of the filters.
+                        # skip the rest of the filters
                         break
 
                 except Exception:
                     print(traceback.format_exc())
                     _filter.error = traceback.format_exc()
+
+        assert type(next_image) == np.ndarray, "Image must be a valid numpy array of shape (width,height,channels)"
 
         return next_image
 
@@ -142,23 +147,20 @@ class PipelineApp(App):
             print(f'file {self.pipeline_name} not found.')
             exit(1)
 
-        extension = filename[-3:].lower()
-        if extension in ('jpg', 'png'):
+        _, extension = os.path.splitext(filename)
+        extension = extension.lower()[1:]
+        if extension in ('jpg', 'png', 'webp'):
             self.video_capture = None
-            self.src_cv = cv.imread(filename)
-        elif extension in ('mp4', 'mov'):
-            self.video_capture = cv.VideoCapture(filename)
-            ret_, self.src_cv = self.video_capture.read()
+            self.src_cv = cv2.imread(filename)
+        elif extension in ('mp4', 'mov', 'hevc'):
+            self.video_capture = cv2.VideoCapture(filename)
         else:
             print(f'file type {extension} is not supported')
             exit(1)
 
         self.src_image = TiledBackgroundImage(allow_stretch=True, keep_ratio=True)
-        self.src_image.texture = cv_to_kivy_texture(self.src_cv)
         self.dest_image = TiledBackgroundImage(allow_stretch=True, keep_ratio=True)
         self.pipeline_widgets = Pipeline()
-
-        self.pipeline_widgets.src_cv = self.src_cv
         self.pipeline_widgets.invalidated = self.update
         self.pipeline_widgets.preview = self.dest_image
 
@@ -166,21 +168,29 @@ class PipelineApp(App):
 
     def load_pipeline(self, file):
         f = open(file)
-        json_pipeline = f.read()
+        with f:
+            json_pipeline = f.read()
 
-        pipeline = json.loads(json_pipeline)
-        for f in pipeline:
-            module = importlib.import_module('main')
-            class_ = getattr(module, f['filter'])
-            params = f.get('params', None)
-            filter_instance = class_() if params is None else class_(params)
-            filter_instance.display_name = f.get('tid') if f.get('tid', None) else filter_instance.__class__.__name__
-            filter_instance.is_enabled = f.get('enabled', False)
-            filter_instance.input = f.get('input', None)
-            filter_instance.inputs = f.get('inputs', None)
-            filter_instance.tid = f.get('tid', None)
+            pipeline = json.loads(json_pipeline)
+            for f in pipeline:
+                # import all predefined filters
+                module = importlib.import_module('opencv_filters')
+                filter_class_name = getattr(module, f['filter'])
+                params = f.get('params', None)
+                # create an instance of the specified filter
+                try:
+                    filter_instance = filter_class_name() if params is None else filter_class_name(params)
+                    filter_instance.display_name = f.get('name') if f.get('name', None) else filter_instance.__class__.__name__
+                    filter_instance.is_enabled = f.get('enabled', True)
+                    filter_instance.input = f.get('input', None)
+                    filter_instance.inputs = f.get('inputs', None)
+                    # keep backwards compatibility with 'tid'
+                    filter_instance.output_id = f.get('output_id', f.get('tid', None))
 
-            self.pipeline_widgets.add_filter(filter_instance)
+                    self.pipeline_widgets.add_filter(filter_instance)
+                except Exception:
+                    print(f'Exception thrown creating {filter_class_name}')
+                    print(traceback.format_exc())
 
     def build(self):
         root = BoxLayout(orientation='vertical')
@@ -242,27 +252,29 @@ class PipelineApp(App):
                 self.interval_event.cancel()
                 self.interval_event = None
             else:
-                self.interval_event = Clock.schedule_interval(self.on_interval, 1.0 / 33.0)
+                self.interval_event = Clock.schedule_interval(self.on_new_frame, 1.0 / 33.0)
         elif codepoint == '.':
             if self.interval_event:
                 self.interval_event.cancel()
                 self.interval_event = None
             else:
                 self.interval_event = None
-                Clock.schedule_once(self.on_interval)
+                Clock.schedule_once(self.on_new_frame)
 
     def on_start(self):
         self.load_pipeline(self.pipeline_name)
-        Clock.schedule_once(self.on_interval)
+        Clock.schedule_once(self.on_new_frame)
 
         inspector.create_inspector(Window, self)
 
     # Called when a video is in use.
-    def on_interval(self, dt):
+    def on_new_frame(self, dt):
         if self.video_capture:
-            ret_, self.src_cv = self.video_capture.read()
+            ret_, frame = self.video_capture.read()
             if not ret_:
                 return
+            self.src_cv = frame
+            self.pipeline_widgets.on_new_frame()
 
         self.update()
 
@@ -275,9 +287,9 @@ class PipelineApp(App):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('-i', '--image_path', required=False, default='test1.png', help='path to input image')
-    ap.add_argument('-p', '--pipeline_path', required=False, default='test_pipeline.json', help='path to json describing pipeline')
+    ap.add_argument('-i', '--input', required=False, default='test1.png', help='path to input image or video')
+    ap.add_argument('-p', '--pipeline', required=False, default='test_pipeline.json', help='path to json describing pipeline')
     args = vars(ap.parse_args())
 
-    PipelineApp(image_path=args['image_path'], pipeline_path=args['pipeline_path']).run()
-    cv.destroyAllWindows()
+    PipelineApp(image_path=args['input'], pipeline_path=args['pipeline']).run()
+    cv2.destroyAllWindows()

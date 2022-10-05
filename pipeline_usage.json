@@ -15,27 +15,20 @@
     "params": {
       "kernel": 1,
       "sigma_color": 3,
-      "sigma_space": 3,
-      "sigmas": 1
+      "sigma_space": 3
     }
   },
   {
     "filter": "BitwiseAndFilter",
-    "enabled": true,
-    "params": {
-    }
+    "enabled": true
   },
   {
     "filter": "BitwiseNotFilter",
-    "enabled": true,
-    "params": {
-    }
+    "enabled": true
   },
   {
     "filter": "BitwiseOrFilter",
-    "enabled": true,
-    "params": {
-    }
+    "enabled": true
   },
   {
     "filter": "BlurFilter",
@@ -53,7 +46,8 @@
       "aperture_size": 3,
       "l2_gradient": 0
     }
-  },{
+  },
+  {
     "filter": "ChannelFilter",
     "enabled": true,
     "params": {
@@ -79,22 +73,7 @@
   },
   {
     "filter": "EqualizeHistogramFilter",
-    "enabled": true,
-    "params": {}
-  },
-  {
-    "filter": "FourPointFilter",
-    "enabled": true,
-    "params": {
-      "tl_x": 0,
-      "tl_y": 0,
-      "tr_x": 100,
-      "tr_y": 0,
-      "br_x": 100,
-      "br_y": 100,
-      "bl_x": 0,
-      "lb_y": 100
-    }
+    "enabled": true
   },
   {
     "filter": "GaussianBlurFilter",
@@ -146,7 +125,8 @@
     "filter": "MorphFilter",
     "enabled": true,
     "params": {
-      "size": 1,
+      "size_x": 1,
+      "size_y": 1,
       "iters": 1,
       "operator": 0,
       "element": 0

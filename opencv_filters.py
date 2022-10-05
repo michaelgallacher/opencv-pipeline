@@ -1,169 +1,111 @@
-import cv2 as cv
+from collections import Counter
+
+import cv2
 import numpy as np
 
-from base_filters import BaseFilter, BaseSliderFilter
-
-
-# Thanks Adrian @ https://www.pyimagesearch.com/2014/08/25/4-point-opencv-getperspective-transform-example!
-def four_point_transform(image, rect):
-    (tl, tr, br, bl) = rect
-
-    width_a = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
-    width_b = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
-    max_width = max(int(width_a), int(width_b))
-
-    height_a = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
-    height_b = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
-    max_height = max(int(height_a), int(height_b))
-
-    dst = np.array([
-        [0, 0],
-        [max_width - 1, 0],
-        [max_width - 1, max_height - 1],
-        [0, max_height - 1]], dtype="float32")
-
-    M = cv.getPerspectiveTransform(rect, dst)
-    warped = cv.warpPerspective(image, M, (max_width, max_height))
-    # return the warped image
-    return warped
-
-
-def sobel(src_cv, sobel_blur):
-    ddepth = cv.CV_16S
-    ksize = sobel_blur
-
-    # [reduce_noise]
-    # Remove noise by blurring with a Gaussian filter ( kernel size = 3 )
-    src_cv = cv.GaussianBlur(src_cv, (ksize, ksize), 0)
-    # [reduce_noise]
-
-    # [convert_to_gray]
-    # Convert the image to grayscale
-    # gray = cv.cvtColor(src_cv, cv.COLOR_BGR2GRAY)
-    gray = src_cv
-    # [convert_to_gray]
-
-    # [sobel]
-    # Gradient-X
-    grad_x = cv.Sobel(gray, ddepth, 1, 0)
-
-    # Gradient-Y
-    grad_y = cv.Sobel(gray, ddepth, 0, 1)
-    # [sobel]
-
-    # [convert]
-    # converting back to uint8
-    abs_grad_x = cv.convertScaleAbs(grad_x)
-    abs_grad_y = cv.convertScaleAbs(grad_y)
-    # [convert]
-
-    # [blend]
-    # Total Gradient (approximate)
-    grad = cv.addWeighted(abs_grad_x, 1, abs_grad_y, 1, 0)
-
-    return grad
+from base_filters import BaseFilter, BaseSliderFilter, SliderInfo
+from util import sobel, angle_cos
 
 
 class AdaptiveThresholdFilter(BaseSliderFilter):
-    filter_params = {'threshold': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-                     'threshold_type': {'min_val': 0, 'max_val': 1, 'step_val': 1},
-                     'block_size': {'min_val': 3, 'max_val': 9, 'step_val': 2},
-                     'C': {'min_val': -5, 'max_val': 5, 'step_val': 1}}
-    opers = [
-        (cv.THRESH_BINARY, 'BINARY'),
-        (cv.THRESH_BINARY_INV, 'BINARY_INV')]
+    filter_params = {'threshold': SliderInfo(0, 255, 1, 30),
+                     'threshold_type': SliderInfo(0, 1, 1, 0),
+                     'block_size': SliderInfo(3, 9, 2, 3),
+                     'C': SliderInfo(-5, 5, 1, 0)}
+    operators = [
+        (cv2.THRESH_BINARY, 'BINARY'),
+        (cv2.THRESH_BINARY_INV, 'BINARY_INV')]
 
-    def get_display_callback(self, filter):
+    def get_display_callback(self, _filter):
         return {
-            'type': self.get_oper_display,
-        }.get(filter, lambda x: str(x))
+            'type': self.get_operator_display,
+        }.get(_filter, lambda x: str(x))
 
-    def get_oper_code(self, x):
-        return self.opers[x][0]
+    def get_operator_code(self, x):
+        return self.operators[x][0]
 
-    def get_oper_display(self, x):
-        return self.opers[x][1]
+    def get_operator_display(self, x):
+        return self.operators[x][1]
 
     def update(self, src_cv):
         threshold = int(self.widget_list[0].value)
-        threshold_type = self.get_oper_code(int(self.widget_list[1].value))
+        threshold_type = self.get_operator_code(int(self.widget_list[1].value))
         block_size = int(self.widget_list[2].value)
         C = int(self.widget_list[3].value)
 
-        return cv.adaptiveThreshold(src_cv, threshold, cv.ADAPTIVE_THRESH_GAUSSIAN_C, threshold_type, block_size, C)
+        return cv2.adaptiveThreshold(src_cv, threshold, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, threshold_type, block_size, C)
 
 
 class BilateralFilter(BaseSliderFilter):
-    filter_params = {'kernel': {'min_val': 1, 'max_val': 51, 'step_val': 2},
-                     'sigma_color': {'min_val': 3, 'max_val': 93, 'step_val': 2},
-                     'sigma_space': {'min_val': 3, 'max_val': 93, 'step_val': 2},
-                     'sigmas': {'min_val': 3, 'max_val': 93, 'step_val': 2}}
+    filter_params = {'kernel': SliderInfo(1, 51, 2, 3),
+                     'sigma_color': SliderInfo(3, 255, 2, 75),
+                     'sigma_space': SliderInfo(3, 255, 2, 75)}
 
     def update(self, src_cv):
         kernel = int(self.widget_list[0].value)
         sigma_color = int(self.widget_list[1].value)
         sigma_space = int(self.widget_list[2].value)
-        return cv.bilateralFilter(src_cv, kernel, sigma_color, sigma_space)
+        return cv2.bilateralFilter(src_cv, kernel, sigma_color, sigma_space)
 
 
 class BitwiseAndFilter(BaseFilter):
     filter_params = {}
 
     def update(self, src_cv):
-        return cv.bitwise_and(src_cv[0], src_cv[1])
+        return cv2.bitwise_and(src_cv[0], src_cv[1])
 
 
 class BitwiseNotFilter(BaseFilter):
     filter_params = {}
 
     def update(self, src_cv):
-        return cv.bitwise_not(src_cv)
+        return cv2.bitwise_not(src_cv)
 
 
 class BitwiseOrFilter(BaseFilter):
     filter_params = {}
 
     def update(self, src_cv):
-        return cv.bitwise_or(src_cv[0], src_cv[1])
+        return cv2.bitwise_or(src_cv[0], src_cv[0])
 
 
 class BlurFilter(BaseSliderFilter):
-    filter_params = {'size': {'min_val': 1, 'max_val': 15, 'step_val': 2}}
+    filter_params = {'size': SliderInfo(1, 15, 2, 3)}
 
     def update(self, src_cv):
         val = int(self.widget_list[0].value)
-        return cv.blur(src_cv, (val, val))
+        return cv2.blur(src_cv, (val, val))
 
 
 class CannyFilter(BaseSliderFilter):
-    filter_params = {'thresh1': {'min_val': 0, 'max_val': 1000, 'step_val': 1},
-                     'thresh2': {'min_val': 0, 'max_val': 1000, 'step_val': 1},
-                     'aperture_size': {'min_val': 3, 'max_val': 7, 'step_val': 2},
-                     'l2_gradient': {'min_val': 0, 'max_val': 1, 'step_val': 1}}
+    filter_params = {'thresh1': SliderInfo(0, 1000, 10, 0),
+                     'thresh2': SliderInfo(0, 1000, 10, 100),
+                     'aperture_size': SliderInfo(3, 7, 2, 3),
+                     'l2_gradient': SliderInfo(0, 1, 1, 0)}
 
     def update(self, src_cv):
         thresh1 = int(self.widget_list[0].value)
         thresh2 = int(self.widget_list[1].value)
         aperture_size = int(self.widget_list[2].value)
         l2_gradient = int(self.widget_list[3].value) == 1
-        return cv.Canny(src_cv, thresh1, thresh2, edges=None, apertureSize=aperture_size, L2gradient=l2_gradient)
+        return cv2.Canny(src_cv, thresh1, thresh2, edges=None, apertureSize=aperture_size, L2gradient=l2_gradient)
 
 
 class ChannelFilter(BaseSliderFilter):
-    filter_params = {'channel': {'min_val': 0, 'max_val': 2, 'step_val': 1},
-                     'thresh': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-                     'type': {'min_val': 0, 'max_val': 2, 'step_val': 1}}
+    filter_params = {'channel': SliderInfo(0, 2, 1, 0),
+                     'thresh': SliderInfo(0, 255, 1, 0),
+                     'type': SliderInfo(0, 2, 1, 0)}
 
     def update(self, src_cv):
         channel = int(self.widget_list[0].value)
         val = int(self.widget_list[1].value)
         oper_int = int(self.widget_list[2].value)
         src_cv = src_cv[:, :, channel]
-        return cv.threshold(src_cv, val, 255, oper_int)[1]
+        return cv2.threshold(src_cv, val, 255, oper_int)[1]
 
 
 class ClipFilter(BaseSliderFilter):
-    filter_params = {'clip': {'min_val': 0, 'max_val': 20, 'step_val': 1}}
+    filter_params = {'clip': SliderInfo(0, 20, 1, 0)}
 
     def update(self, src_cv):
         val = int(self.widget_list[0].value)
@@ -172,53 +114,53 @@ class ClipFilter(BaseSliderFilter):
 
 
 class ContoursFilter(BaseSliderFilter):
-    opers = [
-        (cv.RETR_EXTERNAL, 'RETR_EXTERNAL'),
-        (cv.RETR_LIST, 'RETR_LIST'),
-        (cv.RETR_CCOMP, 'RETR_CCOMP'),
-        (cv.RETR_TREE, 'RETR_TREE'),
-        (cv.RETR_FLOODFILL, 'RETR_FLOODFILL'),
+    operators = [
+        (cv2.RETR_EXTERNAL, 'RETR_EXTERNAL'),
+        (cv2.RETR_LIST, 'RETR_LIST'),
+        (cv2.RETR_CCOMP, 'RETR_CCOMP'),
+        (cv2.RETR_TREE, 'RETR_TREE'),
+        (cv2.RETR_FLOODFILL, 'RETR_FLOODFILL'),
     ]
 
-    filter_params = {'lower': {'min_val': 0, 'max_val': 150000, 'step_val': 50},
-                     'upper': {'min_val': 0, 'max_val': 150000, 'step_val': 50},
-                     "method": {'min_val': 0, 'max_val': 4, 'step_val': 1}}
+    filter_params = {'lower': SliderInfo(0, 150000, 50, 0),
+                     'upper': SliderInfo(0, 150000, 50, 500),
+                     "method": SliderInfo(0, 4, 1, 0)}
 
-    def get_display_callback(self, filter):
+    def get_display_callback(self, _filter):
         return {
-            'method': self.get_oper_display,
-        }.get(filter, lambda x: str(x))
+            'method': self.get_operator_display,
+        }.get(_filter, lambda x: str(x))
 
-    def get_oper_code(self, x):
-        return self.opers[x][0]
+    def get_operator_code(self, x):
+        return self.operators[x][0]
 
-    def get_oper_display(self, x):
-        return self.opers[x][1]
+    def get_operator_display(self, x):
+        return self.operators[x][1]
 
     def update(self, src_cv):
         lower = int(self.widget_list[0].value)
         upper = int(self.widget_list[1].value)
         method_int = int(self.widget_list[2].value)
 
-        contours, _ = cv.findContours(src_cv, method_int, cv.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(src_cv, method_int, cv2.CHAIN_APPROX_SIMPLE)
 
         output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
-        contours_to_draw = [c for c in contours if lower < cv.contourArea(c) < upper]
+        contours_to_draw = [c for c in contours if lower < cv2.contourArea(c) < upper]
 
         if len(contours_to_draw) > 0:
             for contour in contours_to_draw:
                 color = (255, 255, 255)  # (rng.randint(65, 256), rng.randint(65, 256), rng.randint(65, 256))
-                cv.drawContours(output_cv, [contour], -1, color, thickness=1, lineType=cv.LINE_AA)
+                cv2.drawContours(output_cv, [contour], -1, color, thickness=1, lineType=cv2.LINE_AA)
 
         return output_cv
 
 
 class CropFilter(BaseSliderFilter):
     filter_params = {
-        'left': {'min_val': 0, 'max_val': 100, 'step_val': 1},
-        'top': {'min_val': 0, 'max_val': 100, 'step_val': 1},
-        'right': {'min_val': 0, 'max_val': 100, 'step_val': 1},
-        'bottom': {'min_val': 0, 'max_val': 100, 'step_val': 1}}
+        'left': SliderInfo(0, 100, 1, 0),
+        'top': SliderInfo(0, 100, 1, 0),
+        'right': SliderInfo(0, 100, 1, 100),
+        'bottom': SliderInfo(0, 100, 1, 100)}
 
     def update(self, src_cv):
         left = int(self.widget_list[0].value)
@@ -229,82 +171,161 @@ class CropFilter(BaseSliderFilter):
         return src_cv[int(h * top / 100.0):int(h * bottom / 100.00), int(w * left / 100.0):int(w * right / 100.0)]
 
 
+class DiffOfGaussianBlurFilter(BaseSliderFilter):
+    filter_params = {'size1': SliderInfo(1, 15, 2, 3),
+                     'size2': SliderInfo(1, 15, 2, 5)}
+
+    def update(self, src_cv):
+        size1 = int(self.widget_list[0].value)
+        size2 = int(self.widget_list[1].value)
+        return cv2.GaussianBlur(src_cv, (size1, size1), 0) - cv2.GaussianBlur(src_cv, (size2, size2), 0)
+
+
 class EqualizeHistogramFilter(BaseFilter):
     filter_params = {}
 
     def update(self, src_cv):
-        return cv.equalizeHist(src_cv)
+        return cv2.equalizeHist(src_cv)
 
 
-class FourPointFilter(BaseSliderFilter):
-    filter_params = {'tl_x': {'min_val': 0, 'max_val': 100, 'step_val': 1},
-                     'tl_y': {'min_val': 0, 'max_val': 100, 'step_val': 1},
-                     'tr_x': {'min_val': 0, 'max_val': 100, 'step_val': 1},
-                     'tr_y': {'min_val': 0, 'max_val': 100, 'step_val': 1},
-                     'br_x': {'min_val': 0, 'max_val': 100, 'step_val': 1},
-                     'br_y': {'min_val': 0, 'max_val': 100, 'step_val': 1},
-                     'bl_x': {'min_val': 0, 'max_val': 100, 'step_val': 1},
-                     'lb_y': {'min_val': 0, 'max_val': 100, 'step_val': 1}}
+class FillRectFilter(BaseSliderFilter):
+    filter_params = {
+        'left': SliderInfo(0, 100, 1, 0),
+        'top': SliderInfo(0, 100, 1, 0),
+        'right': SliderInfo(0, 100, 1, 100),
+        'bottom': SliderInfo(0, 100, 1, 100)}
 
     def update(self, src_cv):
-        if len(src_cv.shape) == 3:
-            h, w, _ = src_cv.shape
-        else:
-            h, w = src_cv.shape
+        left = int(self.widget_list[0].value)
+        top = int(self.widget_list[1].value)
+        right = int(self.widget_list[2].value)
+        bottom = int(self.widget_list[3].value)
+        h, w, _ = src_cv.shape
+        src_cv[int(h * top / 100.0):int(h * bottom / 100.00), int(w * left / 100.0):int(w * right / 100.0)] = 0
+        return src_cv
 
-        tl_x = int(self.widget_list[0].value * w / 100)
-        tl_y = int(self.widget_list[1].value * h / 100)
-        tr_x = int(self.widget_list[2].value * w / 100)
-        tr_y = int(self.widget_list[3].value * h / 100)
-        br_x = int(self.widget_list[4].value * w / 100)
-        br_y = int(self.widget_list[5].value * h / 100)
-        bl_x = int(self.widget_list[6].value * w / 100)
-        bl_y = int(self.widget_list[7].value * h / 100)
-        return four_point_transform(src_cv, np.array([(tl_x, tl_y), (tr_x, tr_y), (br_x, br_y), (bl_x, bl_y)], dtype='float32'))
+
+class FindSquaresFilter(BaseSliderFilter):
+    filter_params = {'arc_length': SliderInfo(0, 0.5, 0.001, 0.24)}
+
+    def update(self, src_cv):
+        arc_length = self.widget_list[0].value
+        img = src_cv
+        img = cv2.GaussianBlur(img, (5, 5), 0)
+        squares = []
+        for gray in cv2.split(img):
+            for threshold in range(0, 255, 26):
+                if threshold == 0:
+                    _bin = cv2.Canny(gray, 0, 50, apertureSize=5)
+                    _bin = cv2.dilate(_bin, None)
+                else:
+                    _retval, _bin = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+                contours, _hierarchy = cv2.findContours(_bin, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+                for cnt in contours:
+                    cnt_len = cv2.arcLength(cnt, True)
+                    cnt = cv2.approxPolyDP(cnt, arc_length * cnt_len, True)
+                    if len(cnt) >= 4 and cv2.contourArea(cnt) > 1000:
+                        cnt = cnt.reshape(-1, 2)
+                        max_cos = np.max([angle_cos(cnt[i], cnt[(i + 1) % 4], cnt[(i + 2) % 4]) for i in range(4)])
+                        if max_cos < 0.2:
+                            squares.append(cnt)
+
+        output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
+        for contour in squares:
+            color = (128, 255, 255)  # (rng.randint(65, 256), rng.randint(65, 256), rng.randint(65, 256))
+            cv2.drawContours(output_cv, [contour], -1, color, thickness=1, lineType=cv2.LINE_AA)
+
+        return output_cv
 
 
 class GaussianBlurFilter(BaseSliderFilter):
-    filter_params = {'size': {'min_val': 1, 'max_val': 15, 'step_val': 2}}
+    filter_params = {'size': SliderInfo(1, 15, 2, 3)}
 
     def update(self, src_cv):
         val = int(self.widget_list[0].value)
-        return cv.GaussianBlur(src_cv, (val, val), 0)
+        return cv2.GaussianBlur(src_cv, (val, val), 0)
 
 
 class GrayscaleFilter(BaseFilter):
     filter_params = {}
 
     def update(self, src_cv):
-        return cv.cvtColor(src_cv, cv.COLOR_BGR2GRAY)
+        return cv2.cvtColor(src_cv, cv2.COLOR_BGR2GRAY)
+
+
+class HarrisCornerFilter(BaseSliderFilter):
+    filter_params = {'block_size': SliderInfo(1, 5, 1, 3),
+                     'ksize': SliderInfo(1, 25, 2, 3),
+                     'k': SliderInfo(0, 1, 0.01, 0),
+                     'threshold': SliderInfo(0, 1, 0.01, 0)
+                     }
+
+    def update(self, src_cv):
+        block_size = int(self.widget_list[0].value)
+        ksize = int(self.widget_list[1].value)
+        k = self.widget_list[2].value
+        threshold = self.widget_list[3].value
+
+        gray = cv2.cvtColor(src_cv, cv2.COLOR_BGR2GRAY)
+        gray = np.float32(gray)
+        dst = cv2.cornerHarris(gray, block_size, ksize, k)
+        dst = cv2.dilate(dst, None)
+        src_cv[dst > threshold * dst.max()] = [0, 255, 255]
+        return src_cv
 
 
 class HiLoThresholdFilter(BaseSliderFilter):
-    filter_params = {'lower': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-                     'upper': {'min_val': 1, 'max_val': 255, 'step_val': 1}}
+    filter_params = {'lower': SliderInfo(0, 255, 1, 0),
+                     'upper': SliderInfo(1, 255, 1, 255)}
 
     def update(self, src_cv):
         lower = int(self.widget_list[0].value)
         upper = int(self.widget_list[1].value)
-        return cv.inRange(src_cv, lower, upper)
+        return cv2.inRange(src_cv, lower, upper)
 
 
 class HiLo2ThresholdFilter(BaseSliderFilter):
-    filter_params = {'thresh': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-                     'neighborhood': {'min_val': 1, 'max_val': 128, 'step_val': 2}}
+    filter_params = {'thresh': SliderInfo(0, 255, 1, 0),
+                     'neighborhood': SliderInfo(1, 128, 2, 3)}
 
     def update(self, src_cv):
         thresh = int(self.widget_list[0].value)
         neighborhood = int(self.widget_list[1].value)
-        return cv.inRange(src_cv, max(0, thresh - neighborhood), min(255, thresh + neighborhood))
+        return cv2.inRange(src_cv, max(0, thresh - neighborhood), min(255, thresh + neighborhood))
+
+
+class HoughLinesPFilter(BaseSliderFilter):
+    filter_params = {
+        'threshold': SliderInfo(1, 250, 2, 101),
+        'min_line_length': SliderInfo(1, 500, 1, 10),
+        'max_gap': SliderInfo(0, 250, 5, 5),
+        'min_slope': SliderInfo(0, np.pi / 4, 0.01, 0)
+    }
+
+    def update(self, src_cv):
+        threshold = int(self.widget_list[0].value)
+        min_line_length = int(self.widget_list[1].value)
+        max_gap = int(self.widget_list[2].value)
+        min_slope = self.widget_list[3].value
+
+        output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
+
+        lines = cv2.HoughLinesP(src_cv, 1, np.pi / 180, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
+        for line in lines:
+            if filter_slope(line[0], min_slope):
+                x1, y1, x2, y2 = line[0]
+                cv2.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        return output_cv
 
 
 class HSVFilter(BaseSliderFilter):
-    filter_params = {'h-lo': {'min_val': 0, 'max_val': 180, 'step_val': 1},
-                     'h-hi': {'min_val': 0, 'max_val': 180, 'step_val': 1},
-                     's-lo': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-                     's-hi': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-                     'v-lo': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-                     'v-hi': {'min_val': 0, 'max_val': 255, 'step_val': 1}}
+    filter_params = {'h-lo': SliderInfo(0, 180, 1, 0),
+                     'h-hi': SliderInfo(0, 180, 1, 180),
+                     's-lo': SliderInfo(0, 255, 1, 0),
+                     's-hi': SliderInfo(0, 255, 1, 255),
+                     'v-lo': SliderInfo(0, 255, 1, 0),
+                     'v-hi': SliderInfo(0, 255, 1, 255)}
 
     def update(self, src_cv):
         h_lower = int(self.widget_list[0].value)
@@ -313,51 +334,61 @@ class HSVFilter(BaseSliderFilter):
         s_upper = int(self.widget_list[3].value)
         v_lower = int(self.widget_list[4].value)
         v_upper = int(self.widget_list[5].value)
-        return cv.inRange(cv.cvtColor(src_cv, cv.COLOR_BGR2HSV), (h_lower, s_lower, v_lower), (h_upper, s_upper, v_upper))
+        return cv2.inRange(cv2.cvtColor(src_cv, cv2.COLOR_BGR2HSV), (h_lower, s_lower, v_lower), (h_upper, s_upper, v_upper))
+
+
+class MaskFilter(BaseFilter):
+    def update(self, src_cv):
+        _, mask = cv2.threshold(cv2.cvtColor(src_cv[1], cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
+        mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+
+        src_cv[0][mask > 0] = 0
+        src_cv[0] += src_cv[1] * (mask > 0)
+        return src_cv[0]
 
 
 class MedianBlurFilter(BaseSliderFilter):
-    filter_params = {'size': {'min_val': 1, 'max_val': 15, 'step_val': 2}}
+    filter_params = {'size': SliderInfo(1, 15, 2, 3)}
 
     def update(self, src_cv):
         val = int(self.widget_list[0].value)
-        return cv.medianBlur(src_cv, val)
+        return cv2.medianBlur(src_cv, val)
 
 
 class MorphFilter(BaseSliderFilter):
-    opers = [
-        (cv.MORPH_ERODE, 'MORPH_ERODE'),
-        (cv.MORPH_DILATE, 'MORPH_DILATE'),
-        (cv.MORPH_OPEN, 'MORPH_OPEN'),
-        (cv.MORPH_CLOSE, 'MORPH_CLOSE'),
-        (cv.MORPH_GRADIENT, 'MORPH_GRADIENT'),
-        (cv.MORPH_TOPHAT, 'MORPH_TOPHAT'),
-        (cv.MORPH_BLACKHAT, 'MORPH_BLACKHAT'),
+    operators = [
+        (cv2.MORPH_ERODE, 'MORPH_ERODE'),
+        (cv2.MORPH_DILATE, 'MORPH_DILATE'),
+        (cv2.MORPH_OPEN, 'MORPH_OPEN'),
+        (cv2.MORPH_CLOSE, 'MORPH_CLOSE'),
+        (cv2.MORPH_GRADIENT, 'MORPH_GRADIENT'),
+        (cv2.MORPH_TOPHAT, 'MORPH_TOPHAT'),
+        (cv2.MORPH_BLACKHAT, 'MORPH_BLACKHAT'),
     ]
 
     elements = [
-        (cv.MORPH_RECT, 'MORPH_RECT'),
-        (cv.MORPH_CROSS, 'MORPH_CROSS'),
-        (cv.MORPH_ELLIPSE, 'MORPH_ELLIPSE'),
+        (cv2.MORPH_RECT, 'MORPH_RECT'),
+        (cv2.MORPH_CROSS, 'MORPH_CROSS'),
+        (cv2.MORPH_ELLIPSE, 'MORPH_ELLIPSE'),
     ]
 
-    filter_params = {'size_x': {'min_val': 1, 'max_val': 150, 'step_val': 2},
-                     'size_y': {'min_val': 1, 'max_val': 150, 'step_val': 2},
-                     'iters': {'min_val': 1, 'max_val': 9, 'step_val': 1},
-                     'operator': {'min_val': 0, 'max_val': len(opers) - 1, 'step_val': 1},
-                     'element': {'min_val': 0, 'max_val': len(elements) - 1, 'step_val': 1}}
+    filter_params = {'size_x': SliderInfo(1, 150, 2, 3),
+                     'size_y': SliderInfo(1, 150, 2, 3),
+                     'iters': SliderInfo(1, 9, 1, 1),
+                     'operator': SliderInfo(0, len(operators) - 1, 1, 0),
+                     'element': SliderInfo(0, len(elements) - 1, 1, 0)}
 
-    def get_display_callback(self, filter):
+    def get_display_callback(self, _filter):
         return {
-            'operator': self.get_oper_display,
+            'operator': self.get_operator_display,
             'element': self.get_element_display,
-        }.get(filter, lambda x: str(x))
+        }.get(_filter, lambda x: str(x))
 
-    def get_oper_code(self, x):
-        return self.opers[x][0]
+    def get_operator_code(self, x):
+        return self.operators[x][0]
 
-    def get_oper_display(self, x):
-        return self.opers[x][1]
+    def get_operator_display(self, x):
+        return self.operators[x][1]
 
     def get_element_code(self, x):
         return self.elements[x][0]
@@ -369,10 +400,10 @@ class MorphFilter(BaseSliderFilter):
         morph_size_x = int(self.widget_list[0].value)
         morph_size_y = int(self.widget_list[1].value)
         iterations = int(self.widget_list[2].value)
-        oper_int = self.get_oper_code(int(self.widget_list[3].value))
+        oper_int = self.get_operator_code(int(self.widget_list[3].value))
         elem_int = self.get_element_code(int(self.widget_list[4].value))
-        element = cv.getStructuringElement(elem_int, (morph_size_x, morph_size_y))
-        return cv.morphologyEx(src_cv, oper_int, element, iterations=iterations)
+        element = cv2.getStructuringElement(elem_int, (morph_size_x, morph_size_y))
+        return cv2.morphologyEx(src_cv, oper_int, element, iterations=iterations)
 
 
 class PassthroughFilter(BaseFilter):
@@ -381,12 +412,12 @@ class PassthroughFilter(BaseFilter):
 
 
 class RGBFilter(BaseSliderFilter):
-    filter_params = {'r_min': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-                     'r_max': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-                     'g_min': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-                     'g_max': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-                     'b_min': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-                     'b_max': {'min_val': 0, 'max_val': 255, 'step_val': 1}}
+    filter_params = {'r_min': SliderInfo(0, 255, 1, 0),
+                     'r_max': SliderInfo(0, 255, 1, 255),
+                     'g_min': SliderInfo(0, 255, 1, 0),
+                     'g_max': SliderInfo(0, 255, 1, 255),
+                     'b_min': SliderInfo(0, 255, 1, 0),
+                     'b_max': SliderInfo(0, 255, 1, 255)}
 
     def update(self, src_cv):
         r_min = int(self.widget_list[0].value)
@@ -396,29 +427,29 @@ class RGBFilter(BaseSliderFilter):
         b_min = int(self.widget_list[4].value)
         b_max = int(self.widget_list[5].value)
 
-        return cv.inRange(src_cv, (b_min, g_min, r_min), (b_max, g_max, r_max))
+        return cv2.inRange(src_cv, (b_min, g_min, r_min), (b_max, g_max, r_max))
 
 
 class SimpleBlobDetectorFilter(BaseSliderFilter):
     filter_params = {
-        'minThreshold': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-        'maxThreshold': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-        'minArea': {'min_val': 500, 'max_val': 100000, 'step_val': 100},
-        'maxArea': {'min_val': 1000, 'max_val': 100000, 'step_val': 100},
-        'minCircularity': {'min_val': 0, 'max_val': 1, 'step_val': 0.1},
-        'maxCircularity': {'min_val': 0, 'max_val': 1, 'step_val': 0.1},
-        'minConvexity': {'min_val': 0, 'max_val': 1, 'step_val': 0.1},
-        'maxConvexity': {'min_val': 0, 'max_val': 1, 'step_val': 0.1},
-        'minInertia': {'min_val': 0, 'max_val': 1, 'step_val': 0.1},
-        'maxInertia': {'min_val': 0, 'max_val': 1, 'step_val': 0.1},
-        'minDistBetweenBlobs': {'min_val': 1, 'max_val': 100, 'step_val': 1},
-        'minRepeatability': {'min_val': 1, 'max_val': 100, 'step_val': 1},
-        'thresholdStep': {'min_val': 1, 'max_val': 127, 'step_val': 1},
+        'minThreshold': SliderInfo(0, 255, 1, 10),
+        'maxThreshold': SliderInfo(0, 255, 1, 100),
+        'minArea': SliderInfo(500, 100000, 100, 500),
+        'maxArea': SliderInfo(1000, 100000, 100, 1000),
+        'minCircularity': SliderInfo(0, 1, 0.1, 0),
+        'maxCircularity': SliderInfo(0, 1, 0.1, 0),
+        'minConvexity': SliderInfo(0, 1, 0.1, 0),
+        'maxConvexity': SliderInfo(0, 1, 0.1, 0),
+        'minInertia': SliderInfo(0, 1, 0.1, 0),
+        'maxInertia': SliderInfo(0, 1, 0.1, 0),
+        'minDistBetweenBlobs': SliderInfo(1, 100, 1, 10),
+        'minRepeatability': SliderInfo(1, 100, 1, 1),
+        'thresholdStep': SliderInfo(1, 127, 1, 1),
     }
 
     def update(self, src_cv):
         # Setup SimpleBlobDetector parameters.
-        params = cv.SimpleBlobDetector_Params()
+        params = cv2.SimpleBlobDetector_Params()
 
         # Change thresholds
         params.minThreshold = self.widget_list[0].value
@@ -449,8 +480,7 @@ class SimpleBlobDetectorFilter(BaseSliderFilter):
         params.minRepeatability = self.widget_list[11].value
 
         # Create a detector with the parameters
-        # OLD: detector = cv2.SimpleBlobDetector(params)
-        detector = cv.SimpleBlobDetector_create(params)
+        detector = cv2.SimpleBlobDetector_create(params)
 
         # Detect blobs.
         keypoints = detector.detect(src_cv)
@@ -463,40 +493,40 @@ class SimpleBlobDetectorFilter(BaseSliderFilter):
         print("kps:" + str(len(keypoints)))
         for kp in keypoints:
             x, y = kp.pt
-            cv.circle(src_copy, (int(x), int(y)), color=(0, 0, 255), radius=int(kp.size), thickness=3)
+            cv2.circle(src_copy, (int(x), int(y)), color=(0, 0, 255), radius=int(kp.size), thickness=3)
         return src_copy
-        # return cv.drawKeypoints(src_cv, keypoints, np.array([]), (0,0,0), cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        # return cv2.drawKeypoints(src_cv, keypoints, np.array([]), (0,0,0), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 
 
 class SobelFilter(BaseSliderFilter):
-    filter_params = {'ksize': {'min_val': 1, 'max_val': 15, 'step_val': 2}}
+    filter_params = {'ksize': SliderInfo(1, 15, 2, 3)}
 
     def update(self, src_cv):
         return sobel(src_cv, int(self.widget_list[0].value))
 
 
 class ThresholdFilter(BaseSliderFilter):
-    opers = [
-        (cv.THRESH_BINARY, 'BINARY'),
-        (cv.THRESH_BINARY_INV, 'BINARY_INV'),
-        (cv.THRESH_BINARY + cv.THRESH_OTSU, 'BINARY+OTSU'),
-        (cv.THRESH_BINARY_INV + cv.THRESH_OTSU, 'BINARY_INV+OTSU')
+    operators = [
+        (cv2.THRESH_BINARY, 'BINARY'),
+        (cv2.THRESH_BINARY_INV, 'BINARY_INV'),
+        (cv2.THRESH_BINARY + cv2.THRESH_OTSU, 'BINARY+OTSU'),
+        (cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU, 'BINARY_INV+OTSU')
     ]
-    filter_params = {'thresh': {'min_val': 0, 'max_val': 255, 'step_val': 1},
-                     'type': {'min_val': 0, 'max_val': 3, 'step_val': 1}}
+    filter_params = {'thresh': SliderInfo(0, 255, 1, 0),
+                     'type': SliderInfo(0, 3, 1, 0)}
 
-    def get_display_callback(self, filter):
+    def get_display_callback(self, _filter):
         return {
-            'type': self.get_oper_display,
-        }.get(filter, lambda x: str(x))
+            'type': self.get_operator_display,
+        }.get(_filter, lambda x: str(x))
 
-    def get_oper_code(self, x):
-        return self.opers[x][0]
+    def get_operator_code(self, x):
+        return self.operators[x][0]
 
-    def get_oper_display(self, x):
-        return self.opers[x][1]
+    def get_operator_display(self, x):
+        return self.operators[x][1]
 
     def update(self, src_cv):
         val = self.widget_list[0].value
-        oper_int = self.get_oper_code(int(self.widget_list[1].value))
-        return cv.threshold(src_cv, val, 255, oper_int)[1]
+        oper_int = self.get_operator_code(int(self.widget_list[1].value))
+        return cv2.threshold(src_cv, val, 255, oper_int)[1]
