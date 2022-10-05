@@ -176,19 +176,19 @@ class PipelineApp(App):
                 # import all predefined filters
                 module = importlib.import_module('opencv_filters')
                 filter_class_name = getattr(module, f['filter'])
-                params = f.get('params', None)# create an instance of the specified filter
+                params = f.get('params', None)
                 try:
-                # create an instance of the specified filter
-                filter_instance = filter_class_name() if params is None else filter_class_name(params)
-                filter_instance.display_name = f.get('name') if f.get('name', None) else filter_instance.__class__.__name__
-                filter_instance.is_enabled = f.get('enabled', True)
-                filter_instance.input = f.get('input', None)
-                filter_instance.inputs = f.get('inputs', None)
-                # keep backwards compatibility with 'tid'
-                # keep backwards compatibility with 'tid'
+                    # create an instance of the specified filter
+                    filter_instance = filter_class_name() if params is None else filter_class_name(params)
+                    filter_instance.display_name = f.get('name') if f.get('name', None) else filter_instance.__class__.__name__
+                    filter_instance.is_enabled = f.get('enabled', True)
+                    filter_instance.input = f.get('input', None)
+                    filter_instance.inputs = f.get('inputs', None)
+                    # keep backwards compatibility with 'tid'
                     filter_instance.output_id = f.get('output_id', f.get('tid', None))
 
-                self.pipeline_widgets.add_filter(filter_instance)except Exception:
+                    self.pipeline_widgets.add_filter(filter_instance)
+                except Exception:
                     print(f'Exception thrown creating {filter_class_name}')
                     print(traceback.format_exc())
 
