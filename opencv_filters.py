@@ -468,19 +468,21 @@ class HoughLinesPFilter(BaseSliderFilter):
         'threshold': SliderInfo(1, 250, 2, 101),
         'min_line_length': SliderInfo(1, 500, 1, 10),
         'max_gap': SliderInfo(0, 250, 5, 5),
+        'min_slope': SliderInfo(0, np.pi / 4, 0.01, 0)
     }
 
     def update(self, src_cv):
         threshold = int(self.widget_list[0].value)
         min_line_length = int(self.widget_list[1].value)
         max_gap = int(self.widget_list[2].value)
+        min_slope = self.widget_list[3].value
 
         output_cv = np.zeros((src_cv.shape[0], src_cv.shape[1], 3), dtype=np.uint8)
 
         lines = cv2.HoughLinesP(src_cv, 1, np.pi / 180, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
         for line in lines:
-            x1, y1, x2, y2 = line[0]
-            if filter_slope(line[0], 0.15):
+            if filter_slope(line[0], min_slope):
+                x1, y1, x2, y2 = line[0]
                 cv2.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
         return output_cv
@@ -819,6 +821,11 @@ class MaskFilter(BaseFilter):
         return src_cv[0]
 
 
+class AddWeightedFilter(BaseFilter):
+    def update(self, src_cv):
+        return cv2.addWeighted(src_cv[0], 1, src_cv[1], 0.75, 0)
+
+
 class MedianBlurFilter(BaseSliderFilter):
     filter_params = {'size': SliderInfo(1, 15, 2, 3)}
 
@@ -1004,7 +1011,8 @@ class ThresholdFilter(BaseSliderFilter):
         return cv2.threshold(src_cv, val, 255, oper_int)[1]
 
 
-def line_intersection(line1, line2):
+# line: [[x1,y1], [x2,y2]]
+def line_line_intersection(line1, line2):
     xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
     ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
 
@@ -1021,6 +1029,25 @@ def line_intersection(line1, line2):
     return int(x), round(y)
 
 
+def ccw(a, b, c):
+    return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0])
+
+
+# Return true if line segments AB and CD intersect
+def segments_intersect(a, b, c, d):
+    return ccw(a, c, d) != ccw(b, c, d) and ccw(a, b, c) != ccw(a, b, d)
+
+
+def line_rect_intersect(line, rect):
+    rx, ry, rw, rh = rect
+    left = segments_intersect(line[:2], line[2:], (rx, ry), (rx, ry + rh))
+    right = segments_intersect(line[:2], line[2:], (rx + rw, ry), (rx + rw, ry + rh))
+    top = segments_intersect(line[:2], line[2:], (rx, ry), (rx + rw, ry))
+    bottom = segments_intersect(line[:2], line[2:], (rx, ry + rh), (rx + rw, ry + rh))
+
+    return left or right or top or bottom
+
+
 def find_intersections(lines_l, lines_r):
     if not lines_l or not lines_r:
         return []
@@ -1028,21 +1055,20 @@ def find_intersections(lines_l, lines_r):
     intersections = []
     for line_l in lines_l:
         for line_r in lines_r:
-            intersect = line_intersection([line_l[:2], line_l[2:]], [line_r[:2], line_r[2:]])
+            intersect = line_line_intersection([line_l[:2], line_l[2:]], [line_r[:2], line_r[2:]])
             if intersect:
                 intersections.append(intersect)
 
     return intersections
 
 
-def draw_lines(lines, output_cv):
-    for line in lines:
-        x1, y1, x2, y2 = line
-        cv2.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
-        cv2.line(output_cv, (x1, y1), (x2, y2), (0, 255, 0), 1)
+def draw_lines(lines, output_cv) -> None:
+    for x1, y1, x2, y2 in lines:
+        cv2.line(output_cv, (x1, y1), (x2, y2), (0, 128, 255), 1, cv2.LINE_AA)
+        cv2.line(output_cv, (x1, y1), (x2, y2), (0, 128, 255), 1, cv2.LINE_AA)
 
 
-def group_lines(lines, middle_frame_x):
+def group_segments(lines, middle_frame_x):
     lines_r = []
     lines_l = []
     for line in lines:
@@ -1058,22 +1084,56 @@ def group_lines(lines, middle_frame_x):
     return lines_l, lines_r
 
 
-def filter_slope(_line, slope_threshold):
+def filter_slope(_line, slope_threshold) -> bool:
     x1, y1, x2, y2 = _line
     if x1 == x2:
-        return False
+        return True
     m = (y2 - y1) / (x2 - x1)
     return not -slope_threshold < m < slope_threshold
 
 
-def find_vp_candidates(canny, frame_width, max_gap, min_line_length, min_slope, threshold):
-    lines = cv2.HoughLinesP(canny, 1, np.pi / 180, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
-    if lines is None or len(lines) == 0:
+def find_vp_candidates(segments, frame_width, min_slope, valid_calib_rect):
+    if segments is None or len(segments) == 0:
         return [], [], []
-    lines = [line for line in lines if filter_slope(line, min_slope)]
-    lines_l, lines_r = group_lines(np.array(lines)[:, 0], int(frame_width / 2))
+
+    segments = np.array(segments)[:, 0]
+
+    lines_l, lines_r = group_segments(segments, int(frame_width / 2))
+    lines_l = segments_to_lines(lines_l)
+    lines_r = segments_to_lines(lines_r)
+    lines_l = [line for line in lines_l if filter_slope(line, min_slope)]
+    lines_r = [line for line in lines_r if filter_slope(line, min_slope)]
+    lines_l = [line for line in lines_l if line_rect_intersect(line, valid_calib_rect)]
+    lines_r = [line for line in lines_r if line_rect_intersect(line, valid_calib_rect)]
     intersections = find_intersections(lines_l, lines_r)
     return intersections, lines_l, lines_r
+
+
+def segments_to_lines(segments):
+    lines = []
+    for line in segments:
+        x1, y1, x2, y2 = line
+        if x2 == x1 or y1 == y2:
+            continue
+        m = (y2 - y1) / (x2 - x1)
+
+        xf = 100
+        _x1 = -int(-x2 + xf * (y2 - y1) / m)
+        _y1 = -int(m * xf * (x2 - x1) - y2)
+
+        _x2 = int(x1 + xf * (y2 - y1) / m)
+        _y2 = int(m * xf * (x2 - x1) + y1)
+
+        lines.append((_x1, _y1, _x2, _y2))
+
+    return lines
+
+
+def d2p(degree):
+    return int(910 * degree / (180 / np.pi))
+
+
+d2p4, d2p5, d2p8 = d2p(4), d2p(5), d2p(8)
 
 
 class VanishingPointFilter(BaseSliderFilter):
@@ -1087,17 +1147,18 @@ class VanishingPointFilter(BaseSliderFilter):
     def calculate_vp(self, candidates):
         vp = None
         if len(candidates) > 0:
-            # self.candidate_counter = Counter(candidates)
-            self.candidate_counter.update(candidates)
-            most_common = self.candidate_counter.most_common(3)
+            self.nc = len(candidates)
+            self.cur_candidates_counter = Counter(candidates)
+            self.all_candidates_counter.update(np.array(self.cur_candidates_counter.most_common(10), dtype=object)[:, 0])
+            most_common = self.all_candidates_counter.most_common(4)
             most_common = np.array(most_common, dtype=object)
             ws = most_common[:, 1] / sum(most_common[:, 1])
-            mean_x = int(np.average([xval[0] for xval in most_common[:, 0]], axis=0, weights=ws))
-            mean_y = int(np.average([xval[1] for xval in most_common[:, 0]], axis=0, weights=ws))
+            mean_x = int(np.average([pt[0] for pt in most_common[:, 0]], axis=0, weights=ws))
+            mean_y = int(np.average([pt[1] for pt in most_common[:, 0]], axis=0, weights=ws))
             vp = (mean_x, mean_y)
         return vp
 
-    def draw_overlay(self, src_cv, vp):
+    def draw_overlay(self, src_cv, vp) -> np.ndarray:
         if self.overlay is None:
             self.overlay = np.full(src_cv.shape, fill_value=0, dtype=np.uint8)
 
@@ -1109,8 +1170,7 @@ class VanishingPointFilter(BaseSliderFilter):
 
         line_height = 30
         if vp:
-            cv2.circle(overlay_to_display, vp, 11, (1, 1, 1), -1)
-            cv2.circle(overlay_to_display, vp, 9, (0, 254, 254), -1)
+            cv2.circle(overlay_to_display, vp, 11, (0, 255, 255), 2)
             overlay_to_display = cv2.add(overlay_to_display, src_cv)
 
             self.vps = np.append(self.vps, vp)
@@ -1120,29 +1180,31 @@ class VanishingPointFilter(BaseSliderFilter):
 
         hi_contrast_text(overlay_to_display, f'none_found_0:{self.nic_0}', (0, line_height * 3))
         hi_contrast_text(overlay_to_display, f'none_found_1:{self.nic_1}', (0, line_height * 4))
-        hi_contrast_text(overlay_to_display, f'none_found_1:{self.nic_2}', (0, line_height * 5))
-        mc = np.array(self.distances_counter.most_common(10))
-        if len(mc) > 0:
-            hi_contrast_text(overlay_to_display, f'common_distances:{mc[:, 0]}', (0, line_height * 6))
-        hi_contrast_text(overlay_to_display, f'cand:{self.candidate_counter.most_common(5)}', (0, line_height * 7))
+        hi_contrast_text(overlay_to_display, f'top:{self.all_candidates_counter.most_common(5)}', (0, line_height * 5))
+        hi_contrast_text(overlay_to_display, f'cur:{self.cur_candidates_counter.most_common(5)}', (0, line_height * 6))
+        hi_contrast_text(overlay_to_display, f'candidates:{self.nc}', (0, line_height * 7))
+        hi_contrast_text(overlay_to_display, f'f#:{self.frame_num}', (0, line_height * 8))
 
         # add the current vp to the overlay of previous vp data
         _overlay = self.overlay.copy()
-        cv2.circle(_overlay, vp, 5, (1, 1, 1), 1)
-        cv2.circle(_overlay, vp, 4, (255, 255, 255), 1)
-        cv2.circle(_overlay, vp, 3, (0, 255, 255), -1)
-        self.overlay = cv2.addWeighted(_overlay, 0.5, self.overlay, 1 - 0.5, 0)
+        cv2.circle(_overlay, vp, 1, (0, 255, 255), -1)
+        alpha = 0.25
+        self.overlay = cv2.addWeighted(_overlay, alpha, self.overlay, 1 - alpha, 0)
 
         return overlay_to_display
 
     overlay = None
-    candidate_counter = Counter()
+    all_candidates_counter = Counter()
+    cur_candidates_counter = Counter()
     vps = np.array([])
     nic_0 = 0
     nic_1 = 0
-    nic_2 = 0
-    distances_counter = Counter()
     previous_vp = None
+    nc = 0
+    frame_num = -1
+
+    def on_new_frame(self):
+        self.frame_num += 1
 
     def update(self, src_cv):
         threshold = int(self.widget_list[0].value)
@@ -1152,31 +1214,64 @@ class VanishingPointFilter(BaseSliderFilter):
 
         frame_height, frame_width = src_cv.shape[:2]
         output_cv = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
+        mid_x, mid_y = round(frame_width / 2), round(frame_height / 2)
+        valid_calib_rect = (mid_x - d2p4, mid_y - d2p5, 2 * d2p4, d2p5 + d2p8)
 
         canny = cv2.Canny(src_cv, 30, 100, edges=None, apertureSize=3, L2gradient=False)
-        intersections, lines_l, lines_r = find_vp_candidates(canny, frame_width, max_gap, min_line_length, min_slope, threshold)
+        lines = cv2.HoughLinesP(canny, 1, np.pi / 180, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
+        intersections, lines_l, lines_r = find_vp_candidates(lines, frame_width, min_slope, valid_calib_rect)
 
         if len(intersections) == 0:
             self.nic_0 += 1
             canny = cv2.Canny(src_cv, 0, 30, edges=None, apertureSize=3, L2gradient=False)
-            intersections, lines_l, lines_r = find_vp_candidates(canny, frame_width, max_gap, min_line_length, min_slope, threshold)
+            lines = cv2.HoughLinesP(canny, 1, np.pi / 180, threshold=threshold, minLineLength=min_line_length, maxLineGap=max_gap)
+            intersections, lines_l, lines_r = find_vp_candidates(lines, frame_width, min_slope, valid_calib_rect)
 
         if len(intersections) == 0:
             self.nic_1 += 1
-            canny = cv2.Canny(src_cv, 100, 250, edges=None, apertureSize=3, L2gradient=False)
-            intersections, lines_l, lines_r = find_vp_candidates(canny, frame_width, max_gap, min_line_length, min_slope, threshold)
-
-        if len(intersections) == 0:
-            self.nic_2 += 1
         else:
             draw_lines(lines_l, output_cv)
             draw_lines(lines_r, output_cv)
 
         vp = self.calculate_vp(intersections)
         if vp:
-            if self.previous_vp:
-                dist = np.sum((np.array(self.previous_vp) - np.array(vp)) ** 2)
-                if dist > 0:
-                    self.distances_counter.update([dist])
             self.previous_vp = vp
         return self.draw_overlay(output_cv, vp)
+
+
+class GTFilter(BaseFilter):
+    filter_params = {
+    }
+
+    def __init__(self):
+        super().__init__()
+        self.gt_index = -1
+        self.gt = np.loadtxt('/users/michael/code/github/calib_challenge/labeled/3.txt')
+        self.overlay = None
+
+    def on_new_frame(self):
+        self.gt_index += 1
+
+    def update(self, src_cv):
+        height, width = src_cv.shape[:2]
+        pitch, yaw = self.gt[self.gt_index]
+
+        if self.overlay is None:
+            self.overlay = np.full(src_cv.shape, fill_value=0, dtype=np.uint8)
+
+        overlay_to_display = self.overlay.copy()
+        if not np.isnan(yaw) and not np.isnan(pitch):
+            vp = (int(width / 2 + 910 * yaw), int(height / 2 - 910 * pitch))
+            cv2.circle(overlay_to_display, vp, 11, (0, 255, 0), 2)
+
+            mid_x, mid_y = round(width / 2), round(height / 2)
+            cv2.rectangle(overlay_to_display, (mid_x - d2p4, mid_y - d2p5), (mid_x + d2p4, mid_y + d2p8), (255, 255, 255), 2)
+
+            _overlay = self.overlay.copy()
+            cv2.circle(_overlay, vp, 1, (0, 255, 0), -1)
+            alpha = 0.25
+            self.overlay = cv2.addWeighted(_overlay, alpha, self.overlay, 1 - alpha, 0)
+
+            cv2.putText(overlay_to_display, f'GT:{vp}', (0,500), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+
+        return overlay_to_display

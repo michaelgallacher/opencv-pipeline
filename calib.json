@@ -30,7 +30,7 @@
     "params": {
       "threshold": 45,
       "min_line_length": 80,
-      "max_gap": 120
+      "max_gap": 30
     }
   },
   {
@@ -46,12 +46,35 @@
   },
   {
     "name": "VP overlay",
-    "filter": "MaskFilter",
+    "output_id": "vp",
+    "filter": "AddWeightedFilter",
     "enabled": true,
     "inputs": [
       "original",
       "vanishing point"
     ]
+  },
+  {
+    "output_id": "gt",
+    "filter": "GTFilter",
+    "enabled": true
+  },
+  {
+    "filter": "AddWeightedFilter",
+    "inputs": [
+      "vp",
+      "gt"
+    ]
+  },
+  {
+    "filter": "CropFilter",
+    "enabled": false,
+    "params": {
+      "top": 40,
+      "bottom": 60,
+      "left": 40,
+      "right": 60
+    }
   }
 ]
 
