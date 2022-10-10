@@ -1,4 +1,5 @@
 import argparse
+import config
 import cv2
 import importlib
 import json
@@ -138,7 +139,8 @@ class PipelineApp(App):
     def __init__(self, **kwargs):
         super().__init__()
 
-        filename = kwargs.get('image_path')
+        config.current_media_path = kwargs.get('image_path')
+        filename = config.current_media_path
         if not os.path.exists(filename):
             print(f'file {filename} not found.')
             exit(1)

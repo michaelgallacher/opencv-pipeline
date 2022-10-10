@@ -1,0 +1,103 @@
+[
+  {
+    "output_id": "original",
+    "filter": "PassthroughFilter"
+  },
+  {
+    "filter": "FillRectFilter",
+    "enabled": true,
+    "params": {
+      "top": 0,
+      "bottom": 50
+    }
+  },
+  {
+    "output_id": "hlf",
+    "filter": "HoughLinesFilter",
+    "params": {}
+  },
+  {
+    "output_id": "gt",
+    "name": "ground truth",
+    "filter": "GTFilter",
+    "enabled": true,
+    "params": {}
+  },
+  {
+    "name": "ground truth overlay",
+    "filter": "AddWeightedFilter",
+    "inputs": [
+      "hlf",
+      "gt"
+    ]
+  },
+  {
+    "filter": "GrayscaleFilter",
+    "enabled": true
+  },
+  {
+    "filter": "CannyFilter",
+    "enabled": false,
+    "params": {
+      "thresh1": 30,
+      "thresh2": 100,
+      "aperture_size": 3
+    }
+  },
+  {
+    "filter": "HoughLinesPFilter",
+    "enabled": false,
+    "params": {
+      "threshold": 45,
+      "min_line_length": 80,
+      "max_gap": 30
+    }
+  },
+  {
+    "output_id": "vanishing point",
+    "filter": "VanishingPointFilter",
+    "enabled": true,
+    "params": {
+      "threshold": 45,
+      "min_line_length": 80,
+      "max_gap": 120,
+      "min_slope": 0.15
+    }
+  },
+  {
+    "name": "vanishing point overlay",
+    "output_id": "vp",
+    "filter": "AddWeightedFilter",
+    "enabled": true,
+    "inputs": [
+      "original",
+      "vanishing point"
+    ]
+  },
+  {
+    "output_id": "gt",
+    "name": "ground truth",
+    "filter": "GTFilter",
+    "params": {},
+    "enabled": true
+  },
+  {
+    "name": "ground truth overlay",
+    "filter": "AddWeightedFilter",
+    "inputs": [
+      "vp",
+      "gt"
+    ]
+  },
+  {
+    "filter": "CropFilter",
+    "enabled": false,
+    "params": {
+      "top": 40,
+      "bottom": 60,
+      "left": 40,
+      "right": 60
+    }
+  }
+]
+
